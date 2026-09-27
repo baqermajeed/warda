@@ -71,11 +71,13 @@ class ShareAppScreen extends GetView<ShareAppController> {
                   SizedBox(height: 12.h),
                   _SettingsCard(
                     children: [
-                      _ShareRow(
-                        title: 'share_copy_link'.tr,
-                        subtitle: ShareAppController.appLink,
-                        icon: Icons.link_rounded,
-                        onTap: controller.copyLink,
+                      Obx(
+                        () => _ShareRow(
+                          title: 'share_copy_link'.tr,
+                          subtitle: controller.appLink.value,
+                          icon: Icons.link_rounded,
+                          onTap: controller.copyLink,
+                        ),
                       ),
                       const _Divider(),
                       _ShareRow(

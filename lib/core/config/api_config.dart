@@ -1,12 +1,14 @@
-/// إعدادات عنوان الـ API.
-/// للمحاكي Android استخدم 10.0.2.2 بدلاً من localhost.
+/// إعدادات عنوان الـ API أثناء التطوير.
+///
+/// - محاكي Android: `http://10.0.2.2:8000`
+/// - هاتف حقيقي (نفس Wi‑Fi): IP جهاز الكمبيوتر مثل `http://192.168.1.221:8000`
+/// - ويندوز / محاكي iOS: `http://127.0.0.1:8000`
 abstract final class ApiConfig {
-  static const String baseUrl = _baseUrlDev;
+  static const String baseUrl = 'http://192.168.1.221:8000';
 
-  static const String _baseUrlDev = 'https://api.example.com';
-
-  static const String authPrefix = '/api/auth';
-  static const String usersPrefix = '/api/users';
+  static const String apiPrefix = '/api/v1';
+  static const String authPrefix = '/api/v1/auth';
+  static const String usersPrefix = '/api/v1/users';
 
   /// يُعيد الرابط الكامل لمسار صورة نسبي من الـ API.
   static String? imageUrl(String? path) {

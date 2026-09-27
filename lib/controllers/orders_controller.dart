@@ -1,6 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '../core/config/api_config.dart';
+import '../core/errors/api_exception.dart';
+import '../services/api_client.dart';
+import 'auth_controller.dart';
+import 'basket_controller.dart';
+
 /// حالة الطلب في قائمة الطلبات.
 enum OrderStatus {
   delivered,
@@ -144,140 +150,232 @@ class AppOrder {
 
 /// تحكم قائمة الطلبات وتفاصيل الطلب.
 class OrdersController extends GetxController {
-  late final List<AppOrder> orders;
+  final orders = <AppOrder>[].obs;
   final selectedOrderId = RxnString();
+  final isLoading = false.obs;
+
+  ApiClient get _api => Get.find<ApiClient>();
 
   AppOrder? get selectedOrder {
     final id = selectedOrderId.value;
-    if (id == null) return orders.isEmpty ? null : orders.first;
-    return orders.firstWhere((o) => o.id == id, orElse: () => orders.first);
+    if (orders.isEmpty) return null;
+    if (id == null) return orders.first;
+    return orders.firstWhereOrNull((o) => o.id == id) ?? orders.first;
   }
 
   @override
   void onInit() {
     super.onInit();
-    orders = _demoOrders();
     final arg = Get.arguments;
     if (arg is String) {
       selectedOrderId.value = arg;
     } else if (arg is AppOrder) {
       selectedOrderId.value = arg.id;
     }
+    loadOrders();
+  }
+
+  bool _requireAuth() {
+    if (!Get.find<AuthController>().isAuthenticated) {
+      Get.toNamed('/login');
+      return false;
+    }
+    return true;
+  }
+
+  OrderStatus _mapStatus(String? raw) {
+    switch ((raw ?? '').toLowerCase()) {
+      case 'delivered':
+      case 'completed':
+        return OrderStatus.delivered;
+      case 'cancelled':
+      case 'canceled':
+        return OrderStatus.cancelled;
+      default:
+        return OrderStatus.shipping;
+    }
+  }
+
+  String _money(int value) {
+    final s = value.toString();
+    final buf = StringBuffer();
+    for (var i = 0; i < s.length; i++) {
+      final fromEnd = s.length - i;
+      buf.write(s[i]);
+      if (fromEnd > 1 && fromEnd % 3 == 1) buf.write(',');
+    }
+    return '${buf.toString()} ${'common_currency_iqd'.tr}';
+  }
+
+  String _formatDate(String iso) {
+    if (iso.isEmpty) return '';
+    try {
+      final dt = DateTime.parse(iso);
+      final d = dt.day.toString().padLeft(2, '0');
+      final m = dt.month.toString().padLeft(2, '0');
+      return '${dt.year}/$m/$d';
+    } catch (_) {
+      return iso.split('T').first.replaceAll('-', '/');
+    }
+  }
+
+  String _image(String? path) {
+    if (path == null || path.isEmpty) {
+      return 'assets/images/orders/product.jpg';
+    }
+    return ApiConfig.imageUrl(path) ?? path;
+  }
+
+  AppOrder _mapOrder(Map<String, dynamic> json) {
+    final items = (json['items'] as List? ?? []).whereType<Map>().map((e) {
+      final m = Map<String, dynamic>.from(e);
+      final line = (m['line_total'] as num?)?.toInt() ??
+          ((m['unit_price'] as num?)?.toInt() ?? 0) *
+              ((m['qty'] as num?)?.toInt() ?? 1);
+      return OrderLineItem(
+        title: (m['title_ar'] ?? m['title'] ?? '') as String,
+        qty: (m['qty'] as num?)?.toInt() ?? 1,
+        priceLabel: _money(line),
+        imageAsset: _image(m['image'] as String?),
+      );
+    }).toList();
+
+    final giftCard = json['gift_card'];
+    final giftCards = <OrderGiftCard>[];
+    if (giftCard is Map && giftCard.isNotEmpty) {
+      final price = (giftCard['price'] as num?)?.toInt() ?? 0;
+      giftCards.add(
+        OrderGiftCard(
+          imageAsset: _image(giftCard['image'] as String?),
+          priceLabel: _money(price),
+        ),
+      );
+    }
+
+    final wrapJson = json['wrap'];
+    OrderWrap wrap;
+    if (wrapJson is Map && wrapJson.isNotEmpty) {
+      final price = (wrapJson['price'] as num?)?.toInt() ?? 0;
+      wrap = OrderWrap(
+        title: (wrapJson['title_ar'] ?? wrapJson['title'] ?? '') as String,
+        priceLabel: _money(price),
+        imageAsset: _image(wrapJson['image'] as String?),
+      );
+    } else {
+      wrap = const OrderWrap(
+        title: '',
+        priceLabel: '',
+        imageAsset: 'assets/images/orders/wrap.jpg',
+      );
+    }
+
+    final total = (json['total'] as num?)?.toInt() ?? 0;
+    final subtotal = (json['subtotal'] as num?)?.toInt() ?? 0;
+    final delivery = (json['delivery_price'] as num?)?.toInt() ?? 0;
+    final payment = (json['payment_method'] as String?) ?? 'cod';
+    final paymentLabel =
+        payment == 'card' ? 'order_mastercard' : 'order_cod';
+
+    final firstTitle = items.isNotEmpty ? items.first.title : '';
+
+    return AppOrder(
+      id: '${json['id']}',
+      code: (json['code'] as String?) ?? '',
+      date: _formatDate((json['created_at'] as String?) ?? ''),
+      title: firstTitle,
+      subtitle: 'orders_custom_wrap',
+      status: _mapStatus(json['status'] as String?),
+      productsCount: items.fold<int>(0, (s, i) => s + i.qty),
+      totalLabel: _money(total).replaceAll(' ${'common_currency_iqd'.tr}', ''),
+      paymentMethod: paymentLabel,
+      recipient: OrderRecipient(
+        name: (json['recipient_name'] as String?) ?? '',
+        phone: (json['recipient_phone'] as String?) ?? '',
+        governorate: (json['governorate'] as String?) ?? '',
+        landmark: (json['landmark'] as String?) ?? '',
+      ),
+      items: items,
+      giftCards: giftCards.isEmpty
+          ? const [
+              OrderGiftCard(
+                imageAsset: 'assets/images/basket/card_1.jpg',
+                priceLabel: '',
+              ),
+            ]
+          : giftCards,
+      wrap: wrap,
+      priceDetails: OrderPriceDetails(
+        orderPrice: _money(subtotal),
+        deliveryLabel: delivery == 0 ? 'common_free' : _money(delivery),
+        paymentMethod: paymentLabel,
+        totalPrice: _money(total),
+      ),
+    );
+  }
+
+  Future<void> loadOrders() async {
+    if (!_requireAuth()) return;
+    isLoading.value = true;
+    try {
+      final data = await _api.getOrders();
+      final mapped = (data['items'] as List? ?? [])
+          .whereType<Map>()
+          .map((e) => _mapOrder(Map<String, dynamic>.from(e)))
+          .toList();
+      orders.assignAll(mapped);
+    } on ApiException catch (e) {
+      Get.snackbar('common_app_name'.tr, e.message);
+    } catch (_) {
+      Get.snackbar('common_app_name'.tr, 'auth_error_generic'.tr);
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  Future<void> loadOrderDetails(String id) async {
+    if (!_requireAuth()) return;
+    final orderId = int.tryParse(id);
+    if (orderId == null) return;
+    try {
+      final data = await _api.getOrder(orderId);
+      final mapped = _mapOrder(data);
+      final index = orders.indexWhere((o) => o.id == mapped.id);
+      if (index >= 0) {
+        orders[index] = mapped;
+      } else {
+        orders.insert(0, mapped);
+      }
+      selectedOrderId.value = mapped.id;
+    } on ApiException catch (e) {
+      Get.snackbar('common_app_name'.tr, e.message);
+    }
   }
 
   void openDetails(AppOrder order) {
     selectedOrderId.value = order.id;
     Get.toNamed('/orders/details', arguments: order.id);
+    loadOrderDetails(order.id);
   }
 
-  void reorder(AppOrder order) {
-    Get.snackbar(
-      'common_app_name'.tr,
-      'orders_reorder_snack'.trParams({'code': order.code}),
-      snackPosition: SnackPosition.BOTTOM,
-    );
-  }
-
-  List<AppOrder> _demoOrders() {
-    const recipient = OrderRecipient(
-      name: 'بهجة علي رضا',
-      phone: '07700262326',
-      governorate: 'الحلة - بابل',
-      landmark: 'شارع الجمعية',
-    );
-    const wrap = OrderWrap(
-      title: 'ورق كلاسيكي فاخر',
-      priceLabel: '2,000 د.ع',
-      imageAsset: 'assets/images/orders/wrap.jpg',
-    );
-    const gifts = [
-      OrderGiftCard(
-        imageAsset: 'assets/images/basket/card_1.jpg',
-        priceLabel: '2,000 د.ع',
-      ),
-      OrderGiftCard(
-        imageAsset: 'assets/images/basket/card_2.jpg',
-        priceLabel: '2,000 د.ع',
-      ),
-    ];
-    const item = OrderLineItem(
-      title: 'mock_orchid_bouquet',
-      qty: 2,
-      priceLabel: '126,000 د.ع',
-      imageAsset: 'assets/images/orders/product.jpg',
-    );
-
-    return [
-      AppOrder(
-        id: 'o1',
-        code: '#23iS26',
-        date: '2026/08/31',
-        title: 'mock_orchid_bouquet',
-        subtitle: 'orders_custom_wrap',
-        status: OrderStatus.delivered,
-        productsCount: 4,
-        totalLabel: '26,000',
-        paymentMethod: 'order_mastercard',
-        recipient: recipient,
-        items: const [item],
-        giftCards: gifts,
-        wrap: wrap,
-        priceDetails: const OrderPriceDetails(
-          orderPrice: '126,000 د.ع',
-          deliveryLabel: 'common_free',
-          paymentMethod: 'order_mastercard',
-          totalPrice: '126,000 د.ع',
-        ),
-      ),
-      AppOrder(
-        id: 'o2',
-        code: '#23iS26',
-        date: '2026/08/31',
-        title: 'كيك الفراولة',
-        subtitle: 'orders_custom_wrap',
-        status: OrderStatus.shipping,
-        productsCount: 2,
-        totalLabel: '26,000',
-        paymentMethod: 'order_mastercard',
-        recipient: recipient,
-        items: const [
-          OrderLineItem(
-            title: 'كيك الفراولة',
-            qty: 1,
-            priceLabel: '26,000 د.ع',
-            imageAsset: 'assets/images/orders/product.jpg',
-          ),
-        ],
-        giftCards: gifts,
-        wrap: wrap,
-        priceDetails: const OrderPriceDetails(
-          orderPrice: '26,000 د.ع',
-          deliveryLabel: 'common_free',
-          paymentMethod: 'order_mastercard',
-          totalPrice: '26,000 د.ع',
-        ),
-      ),
-      AppOrder(
-        id: 'o3',
-        code: '#23iS26',
-        date: '2026/08/31',
-        title: 'mock_orchid_bouquet',
-        subtitle: 'orders_custom_wrap',
-        status: OrderStatus.cancelled,
-        productsCount: 2,
-        totalLabel: '26,000',
-        paymentMethod: 'order_cod',
-        recipient: recipient,
-        items: const [item],
-        giftCards: gifts,
-        wrap: wrap,
-        priceDetails: const OrderPriceDetails(
-          orderPrice: '26,000 د.ع',
-          deliveryLabel: 'common_free',
-          paymentMethod: 'order_cod',
-          totalPrice: '26,000 د.ع',
-        ),
-      ),
-    ];
+  Future<void> reorder(AppOrder order) async {
+    if (!_requireAuth()) return;
+    final id = int.tryParse(order.id);
+    if (id == null) return;
+    try {
+      await _api.reorder(id);
+      if (!Get.isRegistered<BasketController>()) {
+        Get.put(BasketController());
+      } else {
+        await Get.find<BasketController>().loadCart();
+      }
+      Get.snackbar(
+        'common_app_name'.tr,
+        'orders_reorder_snack'.trParams({'code': order.code}),
+        snackPosition: SnackPosition.BOTTOM,
+      );
+      Get.toNamed('/basket');
+    } on ApiException catch (e) {
+      Get.snackbar('common_app_name'.tr, e.message);
+    }
   }
 }

@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '../core/errors/api_exception.dart';
+import '../services/api_client.dart';
+import 'auth_controller.dart';
 import 'basket_controller.dart';
 
 /// تحكم مراحل إكمال الطلب (معلومات المستلم → الدفع → النجاح).
@@ -11,6 +14,7 @@ class OrderController extends GetxController {
   final landmark = ''.obs;
   final unknownAddress = false.obs;
   final paymentMethod = 'cod'.obs;
+  final isSubmitting = false.obs;
 
   late final TextEditingController nameController;
   late final TextEditingController phoneController;
@@ -37,6 +41,8 @@ class OrderController extends GetxController {
     'gov_sulaymaniyah',
     'gov_babylon',
   ];
+
+  ApiClient get _api => Get.find<ApiClient>();
 
   @override
   void onInit() {
@@ -85,9 +91,82 @@ class OrderController extends GetxController {
 
   void selectPayment(String id) => paymentMethod.value = id;
 
-  void goToPayment() => Get.toNamed('/order/payment');
+  void goToPayment() {
+    final name = recipientName.value.trim();
+    final phone = recipientPhone.value.replaceAll(RegExp(r'\s'), '');
+    if (name.length < 2) {
+      Get.snackbar(
+        'common_app_name'.tr,
+        'edit_profile_error_name'.tr,
+        snackPosition: SnackPosition.BOTTOM,
+      );
+      return;
+    }
+    if (phone.length < 10) {
+      Get.snackbar(
+        'common_app_name'.tr,
+        'edit_profile_error_phone'.tr,
+        snackPosition: SnackPosition.BOTTOM,
+      );
+      return;
+    }
+    Get.toNamed('/order/payment');
+  }
 
-  void confirmOrder() => Get.offNamed('/order/success');
+  Future<void> confirmOrder() async {
+    if (!Get.find<AuthController>().isAuthenticated) {
+      Get.toNamed('/login');
+      return;
+    }
+    final name = recipientName.value.trim();
+    final phone = recipientPhone.value.replaceAll(RegExp(r'\s'), '');
+    if (name.length < 2) {
+      Get.snackbar(
+        'common_app_name'.tr,
+        'edit_profile_error_name'.tr,
+        snackPosition: SnackPosition.BOTTOM,
+      );
+      return;
+    }
+    if (phone.length < 10) {
+      Get.snackbar(
+        'common_app_name'.tr,
+        'edit_profile_error_phone'.tr,
+        snackPosition: SnackPosition.BOTTOM,
+      );
+      return;
+    }
+
+    isSubmitting.value = true;
+    try {
+      await _api.createOrder({
+        'recipient_name': name,
+        'recipient_phone': phone,
+        'governorate': unknownAddress.value ? null : governorate.value,
+        'landmark': unknownAddress.value ? '' : landmark.value.trim(),
+        'unknown_address': unknownAddress.value,
+        'payment_method': paymentMethod.value == 'card' ? 'card' : 'cod',
+      });
+      if (Get.isRegistered<BasketController>()) {
+        await Get.find<BasketController>().loadCart();
+      }
+      Get.offNamed('/order/success');
+    } on ApiException catch (e) {
+      Get.snackbar(
+        'common_app_name'.tr,
+        e.message,
+        snackPosition: SnackPosition.BOTTOM,
+      );
+    } catch (_) {
+      Get.snackbar(
+        'common_app_name'.tr,
+        'auth_error_generic'.tr,
+        snackPosition: SnackPosition.BOTTOM,
+      );
+    } finally {
+      isSubmitting.value = false;
+    }
+  }
 
   void cancelOrder() {
     Get.until((route) => route.settings.name == '/home' || route.isFirst);

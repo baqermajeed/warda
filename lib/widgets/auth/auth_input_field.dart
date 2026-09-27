@@ -21,6 +21,7 @@ class AuthInputField extends StatelessWidget {
     this.onTap,
     this.leading,
     this.inputFormatters,
+    this.obscureText = false,
   });
 
   final String hint;
@@ -35,6 +36,7 @@ class AuthInputField extends StatelessWidget {
   /// يظهر في جهة النهاية (يسار في RTL) — مثل سهم القائمة.
   final Widget? leading;
   final List<TextInputFormatter>? inputFormatters;
+  final bool obscureText;
 
   @override
   Widget build(BuildContext context) {
@@ -51,6 +53,7 @@ class AuthInputField extends StatelessWidget {
         readOnly: readOnly,
         onTap: onTap,
         inputFormatters: inputFormatters,
+        obscureText: obscureText,
         style: TextStyle(
           fontFamily: kFontFamily,
           fontSize: 16.sp,

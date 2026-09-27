@@ -6,6 +6,7 @@ import 'package:get/get.dart';
 import '../../controllers/home_controller.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
+import '../common/app_image.dart';
 
 /// بطاقة منتج أفقية (أحدث / أشهر).
 class HomeProductCard extends StatelessWidget {
@@ -45,12 +46,12 @@ class HomeProductCard extends StatelessWidget {
                   Positioned.fill(
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(14.r),
-                      child: Image.asset(
-                        product.imageAsset,
+                      child: AppImage(
+                        source: product.imageAsset,
                         fit: BoxFit.cover,
                         width: cardWidth,
                         height: imgH,
-                        cacheWidth: 400,
+                        borderRadius: BorderRadius.circular(14.r),
                       ),
                     ),
                   ),

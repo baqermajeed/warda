@@ -16,12 +16,13 @@ class OrderDetailsScreen extends GetView<OrdersController> {
 
   @override
   Widget build(BuildContext context) {
-    final order = controller.selectedOrder;
-    if (order == null) {
-      return Scaffold(body: Center(child: Text('orders_empty_detail'.tr)));
-    }
+    return Obx(() {
+      final order = controller.selectedOrder;
+      if (order == null) {
+        return Scaffold(body: Center(child: Text('orders_empty_detail'.tr)));
+      }
 
-    return Scaffold(
+      return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
         child: Column(
@@ -205,6 +206,7 @@ class OrderDetailsScreen extends GetView<OrdersController> {
         ),
       ),
     );
+    });
   }
 }
 

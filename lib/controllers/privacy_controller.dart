@@ -1,48 +1,51 @@
 import 'package:get/get.dart';
 
+import '../core/errors/api_exception.dart';
 import '../models/privacy_section.dart';
+import '../services/api_client.dart';
 
 /// تحكم شاشة سياسة الخصوصية.
 class PrivacyController extends GetxController {
   final expandedId = RxnString();
+  final sections = <PrivacySection>[].obs;
+  final isLoading = false.obs;
 
-  final sections = const <PrivacySection>[
-    PrivacySection(
-      id: 'intro',
-      titleKey: 'privacy_s_intro_title',
-      bodyKey: 'privacy_s_intro_body',
-    ),
-    PrivacySection(
-      id: 'collect',
-      titleKey: 'privacy_s_collect_title',
-      bodyKey: 'privacy_s_collect_body',
-    ),
-    PrivacySection(
-      id: 'use',
-      titleKey: 'privacy_s_use_title',
-      bodyKey: 'privacy_s_use_body',
-    ),
-    PrivacySection(
-      id: 'share',
-      titleKey: 'privacy_s_share_title',
-      bodyKey: 'privacy_s_share_body',
-    ),
-    PrivacySection(
-      id: 'store',
-      titleKey: 'privacy_s_store_title',
-      bodyKey: 'privacy_s_store_body',
-    ),
-    PrivacySection(
-      id: 'rights',
-      titleKey: 'privacy_s_rights_title',
-      bodyKey: 'privacy_s_rights_body',
-    ),
-    PrivacySection(
-      id: 'contact',
-      titleKey: 'privacy_s_contact_title',
-      bodyKey: 'privacy_s_contact_body',
-    ),
-  ];
+  ApiClient get _api => Get.find<ApiClient>();
+
+  bool get _isAr => (Get.locale?.languageCode ?? 'ar') == 'ar';
+
+  @override
+  void onInit() {
+    super.onInit();
+    loadPrivacy();
+  }
+
+  Future<void> loadPrivacy() async {
+    isLoading.value = true;
+    try {
+      final data = await _api.getPrivacy();
+      final isAr = _isAr;
+      final mapped = (data['items'] as List? ?? []).whereType<Map>().map((e) {
+        final m = Map<String, dynamic>.from(e);
+        return PrivacySection(
+          id: '${m['id']}',
+          titleKey: isAr
+              ? (m['title_ar'] as String? ?? '')
+              : (m['title_en'] as String? ?? m['title_ar'] as String? ?? ''),
+          bodyKey: isAr
+              ? (m['body_ar'] as String? ?? '')
+              : (m['body_en'] as String? ?? m['body_ar'] as String? ?? ''),
+        );
+      }).toList();
+      sections.assignAll(mapped);
+    } on ApiException catch (e) {
+      Get.snackbar('common_app_name'.tr, e.message);
+    } catch (_) {
+      // keep empty
+    } finally {
+      isLoading.value = false;
+    }
+  }
 
   void toggle(String id) {
     if (expandedId.value == id) {

@@ -6,6 +6,7 @@ import 'package:get/get.dart';
 import '../../controllers/special_gift_controller.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
+import '../../widgets/common/app_image.dart';
 
 /// صفحة نتائج اقتراحات الهدية المخصصة — Figma 1:3223.
 class SpecialGiftResultsScreen extends GetView<SpecialGiftController> {
@@ -106,24 +107,33 @@ class SpecialGiftResultsScreen extends GetView<SpecialGiftController> {
             ),
             SizedBox(height: 18.h),
             Expanded(
-              child: GridView.builder(
-                padding: EdgeInsets.fromLTRB(20.w, 0, 20.w, 24.h),
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  crossAxisSpacing: 13.7.w,
-                  mainAxisSpacing: 13.7.h,
-                  childAspectRatio: 170 / 217,
-                ),
-                itemCount: controller.suggestions.length,
-                itemBuilder: (context, index) {
-                  final item = controller.suggestions[index];
-                  return _SuggestionCard(
-                    item: item,
-                    onFavorite: () => controller.toggleFavorite(item.id),
-                    onTap: () => Get.toNamed('/product-details'),
-                  );
-                },
-              ),
+              child: Obx(() {
+                if (controller.isLoadingResults.value) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                final items = controller.suggestions;
+                return GridView.builder(
+                  padding: EdgeInsets.fromLTRB(20.w, 0, 20.w, 24.h),
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    crossAxisSpacing: 13.7.w,
+                    mainAxisSpacing: 13.7.h,
+                    childAspectRatio: 170 / 217,
+                  ),
+                  itemCount: items.length,
+                  itemBuilder: (context, index) {
+                    final item = items[index];
+                    return _SuggestionCard(
+                      item: item,
+                      onFavorite: () => controller.toggleFavorite(item.id),
+                      onTap: () => Get.toNamed(
+                        '/product-details',
+                        arguments: {'id': item.id},
+                      ),
+                    );
+                  },
+                );
+              }),
             ),
           ],
         ),
@@ -228,12 +238,9 @@ class _SuggestionCard extends StatelessWidget {
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  Image.asset(
-                    item.imageAsset,
+                  AppImage(
+                    source: item.imageAsset,
                     fit: BoxFit.cover,
-                    cacheWidth: 400,
-                    filterQuality: FilterQuality.low,
-                    gaplessPlayback: true,
                   ),
                   PositionedDirectional(
                     start: 12.w,

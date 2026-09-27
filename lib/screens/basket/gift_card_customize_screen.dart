@@ -5,6 +5,7 @@ import 'package:get/get.dart';
 import '../../controllers/basket_controller.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
+import '../../widgets/common/app_image.dart';
 
 /// صفحة تخصيص بطاقة الأهداء.
 class GiftCardCustomizeScreen extends GetView<BasketController> {
@@ -142,7 +143,10 @@ class GiftCardCustomizeScreen extends GetView<BasketController> {
             ),
             _BottomActions(
               onPreview: () {},
-              onSave: () => Get.back(),
+              onSave: () async {
+                await controller.persistOptions();
+                Get.back();
+              },
             ),
           ],
         ),
@@ -183,15 +187,10 @@ class _CardOption extends StatelessWidget {
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.vertical(top: Radius.circular(22.r)),
-                  child: Image.asset(
-                    card.imageAsset,
+                  child: AppImage(
+                    source: card.imageAsset,
                     fit: BoxFit.cover,
-                    cacheWidth: 300,
-                    cacheHeight: 280,
-                    errorBuilder: (_, _, _) => ColoredBox(
-                      color: AppColors.authLogoCircle,
-                      child: Icon(Icons.image, color: AppColors.authLink),
-                    ),
+                    fallbackAsset: 'assets/images/basket/card_1.jpg',
                   ),
                 ),
               ),

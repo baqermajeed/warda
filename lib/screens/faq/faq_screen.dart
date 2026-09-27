@@ -57,19 +57,22 @@ class FaqScreen extends GetView<FaqController> {
             ),
             SizedBox(height: 18.h),
             Expanded(
-              child: ListView(
-                padding: EdgeInsets.fromLTRB(18.w, 0, 18.w, 28.h),
-                children: [
-                  const _HeroBanner(),
-                  SizedBox(height: 22.h),
-                  ...controller.categories.map((category) {
-                    return Padding(
-                      padding: EdgeInsets.only(bottom: 20.h),
-                      child: _FaqSection(category: category),
-                    );
-                  }),
-                ],
-              ),
+              child: Obx(() {
+                final cats = controller.categories;
+                return ListView(
+                  padding: EdgeInsets.fromLTRB(18.w, 0, 18.w, 28.h),
+                  children: [
+                    const _HeroBanner(),
+                    SizedBox(height: 22.h),
+                    ...cats.map((category) {
+                      return Padding(
+                        padding: EdgeInsets.only(bottom: 20.h),
+                        child: _FaqSection(category: category),
+                      );
+                    }),
+                  ],
+                );
+              }),
             ),
           ],
         ),

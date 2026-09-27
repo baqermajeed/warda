@@ -15,8 +15,17 @@ class ApiException implements Exception {
         statusCode: statusCode,
       );
     }
+    final detail = body['detail'];
+    final detailMessage = detail is String
+        ? detail
+        : (detail is List && detail.isNotEmpty
+            ? detail.first.toString()
+            : null);
     return ApiException(
-      message: body['message'] as String? ?? 'Unknown error',
+      message: detailMessage ??
+          body['message'] as String? ??
+          'Unknown error',
+      code: body['code'] as String?,
       statusCode: statusCode,
     );
   }

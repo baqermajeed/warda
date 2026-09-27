@@ -2,15 +2,44 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 
+import '../services/api_client.dart';
+
 /// تحكم شاشة مشاركة التطبيق.
 class ShareAppController extends GetxController {
-  static const appLink = 'https://warda.app/download';
+  final appLink = 'https://warda.app/download'.obs;
+  final _messageAr = 'جرب تطبيق وردة للهدايا والزهور!'.obs;
+  final _messageEn = 'Try Warda — gifts and flowers delivered!'.obs;
 
-  String get shareMessage =>
-      'share_message_body'.trParams({'link': appLink});
+  ApiClient get _api => Get.find<ApiClient>();
+
+  String get shareMessage {
+    final isAr = (Get.locale?.languageCode ?? 'ar') == 'ar';
+    final base = isAr ? _messageAr.value : _messageEn.value;
+    if (base.contains(appLink.value)) return base;
+    return '$base\n${appLink.value}';
+  }
+
+  @override
+  void onInit() {
+    super.onInit();
+    loadShare();
+  }
+
+  Future<void> loadShare() async {
+    try {
+      final data = await _api.getShare();
+      appLink.value = (data['url'] as String?) ?? appLink.value;
+      _messageAr.value =
+          (data['message_ar'] as String?) ?? _messageAr.value;
+      _messageEn.value =
+          (data['message_en'] as String?) ?? _messageEn.value;
+    } catch (_) {
+      // keep defaults
+    }
+  }
 
   Future<void> copyLink() async {
-    await Clipboard.setData(const ClipboardData(text: appLink));
+    await Clipboard.setData(ClipboardData(text: appLink.value));
     _toast('share_copied_link'.tr);
   }
 

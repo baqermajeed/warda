@@ -46,6 +46,7 @@ import 'screens/privacy/privacy_screen.dart';
 import 'screens/share/share_app_screen.dart';
 import 'screens/spicial-gift/special_gift_flow_screen.dart';
 import 'screens/spicial-gift/special_gift_results_screen.dart';
+import 'services/api_client.dart';
 import 'services/token_storage.dart';
 import 'widgets/common/loading/full_page_loading.dart';
 import 'widgets/shell/main_shell.dart';
@@ -56,7 +57,17 @@ Future<void> main() async {
 
   final tokenStorage = TokenStorage();
   Get.put(tokenStorage, permanent: true);
-  Get.put(AuthController(tokenStorage: tokenStorage), permanent: true);
+  final auth = Get.put(AuthController(tokenStorage: tokenStorage), permanent: true);
+  Get.put(
+    ApiClient(
+      tokenStorage: tokenStorage,
+      onSessionExpired: () {
+        auth.user.value = null;
+        Get.offAllNamed('/login');
+      },
+    ),
+    permanent: true,
+  );
   Get.put(ThemeController(), permanent: true);
   final localeController = Get.put(LocaleController(), permanent: true);
   await localeController.ensureLoaded();

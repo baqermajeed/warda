@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '../core/config/api_config.dart';
+import '../core/errors/api_exception.dart';
+import '../services/api_client.dart';
+import '../utils/product_mapper.dart';
+import 'auth_controller.dart';
 import 'basket_controller.dart';
 import 'home_controller.dart';
 
@@ -16,151 +21,129 @@ class ProductBadge {
 class ProductDetailsController extends GetxController {
   final imageIndex = 0.obs;
   final isFavorite = false.obs;
+  final isLoading = true.obs;
   late final PageController pageController;
 
-  late String productId;
-  late String title;
-  late String priceLabel;
-  late int priceValue;
-  late double rating;
-  late List<String> images;
-  late List<HomeProduct> similar;
+  String productId = '';
+  String title = '';
+  String priceLabel = '';
+  int priceValue = 0;
+  double rating = 4.5;
+  List<String> images = [];
+  List<HomeProduct> similar = [];
+  String description = '';
+  String heightLabel = '';
+  String widthLabel = '';
+  List<String> careSteps = [];
+  List<ProductBadge> badges = const [];
 
-  final description =
-      'باقة رائعة من التوليب والأقحوان، تنبض بالحب والجمال. الألوان الزاهية للتوليب تضفي لمسة من الأناقة، بينما تضيف الأقحوان لمسة من العفوية والبهجة. إنها تعبير مثالي عن المشاعر الدافئة، وتناسب كل المناسبات الخاصة.';
-
-  final heightLabel = '10.5cm';
-  final widthLabel = '17.5cm';
-
-  final careSteps = const [
-    'ضع الباقة في ماء نظيف وعذب، مع تغيير الماء كل يومين.',
-    'قص أطراف السيقان بزاوية مائلة لتحسين امتصاص الماء',
-    'ابعد الباقة عن أشعة الشمس المباشرة والحرارة العالية',
-    'أضف مغذيات الزهور إلى الماء لتعزيز عمرها',
-    'قم بإزالة الأوراق الذابلة بانتظام للحفاظ على مظهرها',
-  ];
-
-  final badges = const [
-    ProductBadge(
-      label: 'product_badge_natural',
-      iconAsset: 'assets/icons/product/truck.svg',
-    ),
-    ProductBadge(
-      label: 'product_badge_free_delivery',
-      iconAsset: 'assets/icons/product/map.svg',
-    ),
-    ProductBadge(
-      label: 'product_badge_mastercard',
-      iconAsset: 'assets/icons/product/card.svg',
-    ),
-    ProductBadge(
-      label: 'product_badge_fast',
-      iconAsset: 'assets/icons/product/truck.svg',
-    ),
-  ];
+  ApiClient get _api => Get.find<ApiClient>();
 
   @override
   void onInit() {
     super.onInit();
     pageController = PageController();
-    _loadFromArgs();
+    _bootstrap();
   }
 
-  void _loadFromArgs() {
+  Future<void> _bootstrap() async {
     final args = Get.arguments;
     if (args is HomeProduct) {
       productId = args.id;
       title = args.title;
       priceLabel = args.priceLabel;
       rating = args.rating;
-      images = [
-        args.imageAsset,
-        'assets/images/product/hero.jpg',
-        'assets/images/product/hero_3.jpg',
-      ];
+      images = [args.imageAsset];
+      priceValue = _parsePrice(priceLabel);
       if (Get.isRegistered<HomeController>()) {
         isFavorite.value = Get.find<HomeController>().isFavorite(args.id);
       }
-    } else {
-      productId = 'pd1';
-      title = 'mock_tulip_daisy';
-      priceLabel = '126,000';
-      rating = 4.5;
-      images = [
-        'assets/images/product/hero.jpg',
-        'assets/images/product/hero_2.jpg',
-        'assets/images/product/hero_3.jpg',
-      ];
+    } else if (args is Map && args['id'] != null) {
+      productId = '${args['id']}';
     }
-    priceValue = _parsePrice(priceLabel);
-    similar = [
-      const HomeProduct(
-        id: 's1',
-        title: 'mock_orchid_bouquet',
-        priceLabel: '10,000',
-        imageAsset: 'assets/images/product/similar_1.jpg',
-      ),
-      const HomeProduct(
-        id: 's2',
-        title: 'mock_orchid_bouquet',
-        priceLabel: '10,000',
-        imageAsset: 'assets/images/product/similar_2.jpg',
-      ),
-      const HomeProduct(
-        id: 's3',
-        title: 'mock_orchid_bouquet',
-        priceLabel: '10,000',
-        imageAsset: 'assets/images/product/similar_3.jpg',
-      ),
-      const HomeProduct(
-        id: 's4',
-        title: 'mock_orchid_bouquet',
-        priceLabel: '10,000',
-        imageAsset: 'assets/images/product/similar_4.jpg',
-      ),
-    ];
+    await loadDetails();
+  }
+
+  Future<void> loadDetails() async {
+    final id = int.tryParse(productId);
+    if (id == null) {
+      isLoading.value = false;
+      return;
+    }
+    isLoading.value = true;
+    try {
+      final data = await _api.getProduct(id);
+      title = (data['title'] ?? data['title_ar'] ?? title) as String;
+      priceLabel = (data['price_label'] ?? priceLabel) as String;
+      priceValue = (data['price'] as num?)?.toInt() ?? _parsePrice(priceLabel);
+      rating = double.tryParse('${data['rating']}') ?? rating;
+      description = (data['description_ar'] ?? description) as String;
+      heightLabel = (data['height_label'] ?? heightLabel) as String? ?? '';
+      widthLabel = (data['width_label'] ?? widthLabel) as String? ?? '';
+      isFavorite.value = data['is_favorite'] as bool? ?? isFavorite.value;
+
+      final imgs = (data['images'] as List? ?? [])
+          .map((e) => ApiConfig.imageUrl('$e') ?? '$e')
+          .where((e) => e.isNotEmpty)
+          .toList();
+      if (imgs.isNotEmpty) images = imgs;
+
+      careSteps = (data['care_steps_ar'] as List? ?? [])
+          .map((e) => '$e')
+          .toList();
+      badges = (data['badges'] as List? ?? []).whereType<Map>().map((e) {
+        final label = '${e['label'] ?? ''}';
+        return ProductBadge(
+          label: label,
+          iconAsset: 'assets/icons/product/truck.svg',
+        );
+      }).toList();
+      similar = mapHomeProductList(data['similar']);
+    } on ApiException catch (_) {
+      // keep bootstrap values
+    } finally {
+      isLoading.value = false;
+    }
   }
 
   int _parsePrice(String label) {
     final digits = label.replaceAll(RegExp(r'[^0-9]'), '');
-    return int.tryParse(digits) ?? 126000;
+    return int.tryParse(digits) ?? 0;
   }
 
   void onPageChanged(int index) => imageIndex.value = index;
 
-  void toggleFavorite() {
+  Future<void> toggleFavorite() async {
+    if (!Get.find<AuthController>().isAuthenticated) {
+      Get.toNamed('/login');
+      return;
+    }
     isFavorite.toggle();
     if (Get.isRegistered<HomeController>()) {
-      Get.find<HomeController>().toggleFavorite(productId);
+      await Get.find<HomeController>().toggleFavorite(productId);
     }
   }
 
-  void addToBasket() {
-    if (!Get.isRegistered<BasketController>()) {
-      Get.put(BasketController());
+  Future<void> addToBasket() async {
+    if (!Get.find<AuthController>().isAuthenticated) {
+      Get.toNamed('/login');
+      return;
     }
-    final basket = Get.find<BasketController>();
-    final existing = basket.items.indexWhere((e) => e.id == productId);
-    if (existing >= 0) {
-      basket.incrementQty(productId);
-    } else {
-      basket.items.add(
-        BasketItem(
-          id: productId,
-          code: '#${productId.toUpperCase()}',
-          title: title,
-          subtitle: 'من تفاصيل المنتج',
-          imageAsset: images.first,
-          unitPrice: priceValue,
-          qty: 1,
-        ),
+    final id = int.tryParse(productId);
+    if (id == null) return;
+    try {
+      if (!Get.isRegistered<BasketController>()) {
+        Get.put(BasketController());
+      }
+      await Get.find<BasketController>().addProductFromApi(id);
+      Get.snackbar(
+        'common_app_name'.tr,
+        'product_snack_added'.tr,
+        snackPosition: SnackPosition.BOTTOM,
       );
+    } on ApiException catch (e) {
+      Get.snackbar('common_app_name'.tr, e.message);
     }
-    Get.snackbar(
-      'common_app_name'.tr,
-      'product_snack_added'.tr,
-      snackPosition: SnackPosition.BOTTOM,
-    );
   }
 
   void shareProduct() {
@@ -176,11 +159,7 @@ class ProductDetailsController extends GetxController {
   }
 
   void viewMoreSimilar() {
-    Get.snackbar(
-      'common_app_name'.tr,
-      'product_snack_more_soon'.tr,
-      snackPosition: SnackPosition.BOTTOM,
-    );
+    Get.back();
   }
 
   @override

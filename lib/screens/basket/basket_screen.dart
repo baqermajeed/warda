@@ -6,6 +6,7 @@ import 'package:get/get.dart';
 import '../../controllers/basket_controller.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
+import '../../widgets/common/app_image.dart';
 
 /// شاشة السلة — تبويب الشريط السفلي.
 class BasketScreen extends GetView<BasketController> {
@@ -275,13 +276,11 @@ class _BasketItemCard extends StatelessWidget {
               topEnd: Radius.circular(23.r),
               bottomEnd: Radius.circular(23.r),
             ),
-            child: Image.asset(
-              item.imageAsset,
+            child: AppImage(
+              source: item.imageAsset,
               width: 97.w,
               height: 143.h,
               fit: BoxFit.cover,
-              cacheWidth: 200,
-              cacheHeight: 300,
             ),
           ),
         ],

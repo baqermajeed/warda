@@ -1,6 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '../core/config/api_config.dart';
+import '../core/errors/api_exception.dart';
+import '../services/api_client.dart';
+import 'auth_controller.dart';
+import 'home_controller.dart';
+
 /// خيار اختيار في خطوات الهدية المخصصة.
 class SpecialGiftOption {
   const SpecialGiftOption({
@@ -26,8 +32,12 @@ class SpecialGiftController extends GetxController {
   final budgetFrom = ''.obs;
   final budgetTo = ''.obs;
   final favoriteIds = <String>{}.obs;
+  final suggestions = <SpecialGiftSuggestion>[].obs;
+  final isLoadingResults = false.obs;
 
   bool get isIntro => currentStep.value == 0;
+
+  ApiClient get _api => Get.find<ApiClient>();
 
   static const stepColors = <Color>[
     Color(0xFFE3C226),
@@ -285,65 +295,94 @@ class SpecialGiftController extends GetxController {
     return '$to $currency';
   }
 
-  final suggestions = const [
-    SpecialGiftSuggestion(
-      id: 's1',
-      title: 'mock_orchid_bouquet',
-      price: '10,000',
-      rating: '4.5',
-      imageAsset: 'assets/images/home/product_1.png',
-    ),
-    SpecialGiftSuggestion(
-      id: 's2',
-      title: 'mock_orchid_bouquet',
-      price: '10,000',
-      rating: '4.5',
-      imageAsset: 'assets/images/home/product_2.png',
-    ),
-    SpecialGiftSuggestion(
-      id: 's3',
-      title: 'mock_orchid_bouquet',
-      price: '10,000',
-      rating: '4.5',
-      imageAsset: 'assets/images/home/product_3.png',
-    ),
-    SpecialGiftSuggestion(
-      id: 's4',
-      title: 'mock_orchid_bouquet',
-      price: '10,000',
-      rating: '4.5',
-      imageAsset: 'assets/images/home/product_4.png',
-    ),
-    SpecialGiftSuggestion(
-      id: 's5',
-      title: 'mock_orchid_bouquet',
-      price: '10,000',
-      rating: '4.5',
-      imageAsset: 'assets/images/home/product_5.png',
-    ),
-    SpecialGiftSuggestion(
-      id: 's6',
-      title: 'mock_orchid_bouquet',
-      price: '10,000',
-      rating: '4.5',
-      imageAsset: 'assets/images/home/product_6.png',
-    ),
-  ];
+  int? _parseBudget(String raw) {
+    final digits = raw.replaceAll(RegExp(r'[^0-9]'), '');
+    if (digits.isEmpty) return null;
+    return int.tryParse(digits);
+  }
 
-  void toggleFavorite(String id) {
-    if (favoriteIds.contains(id)) {
+  Future<void> loadRecommendations() async {
+    isLoadingResults.value = true;
+    try {
+      final data = await _api.specialGiftRecommend({
+        'recipient_id': selectedRecipientId.value,
+        'occasion_id': selectedOccasionId.value,
+        'type_id': selectedTypeId.value,
+        'budget_from': _parseBudget(budgetFrom.value),
+        'budget_to': _parseBudget(budgetTo.value),
+      });
+      final mapped = (data['items'] as List? ?? []).whereType<Map>().map((e) {
+        final m = Map<String, dynamic>.from(e);
+        final image = m['image'] as String? ?? '';
+        return SpecialGiftSuggestion(
+          id: '${m['id']}',
+          title: (m['title'] ?? m['title_ar'] ?? '') as String,
+          price: (m['price_label'] ?? '${m['price'] ?? 0}') as String,
+          rating: '${m['rating'] ?? 4.5}',
+          imageAsset: ApiConfig.imageUrl(image) ??
+              (image.isEmpty ? 'assets/images/home/product_1.png' : image),
+        );
+      }).toList();
+      suggestions.assignAll(mapped);
+      favoriteIds
+        ..clear()
+        ..addAll(
+          (data['items'] as List? ?? [])
+              .whereType<Map>()
+              .where((e) => e['is_favorite'] == true)
+              .map((e) => '${e['id']}'),
+        );
+    } on ApiException catch (e) {
+      Get.snackbar('common_app_name'.tr, e.message);
+    } catch (_) {
+      Get.snackbar('common_app_name'.tr, 'auth_error_generic'.tr);
+    } finally {
+      isLoadingResults.value = false;
+    }
+  }
+
+  Future<void> toggleFavorite(String id) async {
+    if (!Get.find<AuthController>().isAuthenticated) {
+      Get.toNamed('/login');
+      return;
+    }
+    final productId = int.tryParse(id);
+    if (productId == null) return;
+    final wasFav = favoriteIds.contains(id);
+    if (wasFav) {
       favoriteIds.remove(id);
     } else {
       favoriteIds.add(id);
     }
+    try {
+      if (wasFav) {
+        await _api.removeFavorite(productId);
+      } else {
+        await _api.addFavorite(productId);
+      }
+      if (Get.isRegistered<HomeController>()) {
+        final home = Get.find<HomeController>();
+        if (wasFav) {
+          home.favoriteIds.remove(id);
+        } else {
+          home.favoriteIds.add(id);
+        }
+      }
+    } catch (_) {
+      if (wasFav) {
+        favoriteIds.add(id);
+      } else {
+        favoriteIds.remove(id);
+      }
+    }
   }
 
-  void next() {
+  Future<void> next() async {
     if (currentStep.value < 4) {
       currentStep.value++;
       return;
     }
-    // أغلق المودال ثم انتقل بعد الإطار التالي لتفادي ANR
+    await loadRecommendations();
     if (Get.isDialogOpen ?? false) {
       Get.back();
     } else {
@@ -363,6 +402,8 @@ class SpecialGiftController extends GetxController {
     selectedTypeId.value = null;
     budgetFrom.value = '';
     budgetTo.value = '';
+    suggestions.clear();
+    favoriteIds.clear();
   }
 }
 

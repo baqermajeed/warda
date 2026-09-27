@@ -7,6 +7,7 @@ import '../../controllers/favorites_controller.dart';
 import '../../controllers/home_controller.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
+import '../../widgets/common/app_image.dart';
 
 /// شاشة المفضلات — حسب تصميم Figma (warda / Favorites).
 class FavoritesScreen extends GetView<FavoritesController> {
@@ -189,8 +190,8 @@ class _FavoriteProductCard extends StatelessWidget {
             child: Stack(
               fit: StackFit.expand,
               children: [
-                Image.asset(
-                  product.imageAsset,
+                AppImage(
+                  source: product.imageAsset,
                   fit: BoxFit.cover,
                 ),
                 PositionedDirectional(

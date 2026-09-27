@@ -1,5 +1,10 @@
 import 'package:get/get.dart';
 
+import '../core/config/api_config.dart';
+import '../core/errors/api_exception.dart';
+import '../services/api_client.dart';
+import 'auth_controller.dart';
+
 /// عنصر داخل السلة.
 class BasketItem {
   BasketItem({
@@ -10,6 +15,7 @@ class BasketItem {
     required this.imageAsset,
     required this.unitPrice,
     this.qty = 1,
+    this.productId,
   });
 
   final String id;
@@ -19,6 +25,7 @@ class BasketItem {
   final String imageAsset;
   final int unitPrice;
   int qty;
+  final int? productId;
 
   int get lineTotal => unitPrice * qty;
 }
@@ -43,10 +50,11 @@ class BasketOption {
 /// تحكم شاشات السلة والمتفرعات.
 class BasketController extends GetxController {
   final items = <BasketItem>[].obs;
+  final isLoading = false.obs;
   final priceExpanded = false.obs;
-  final selectedCardId = 'card_wedding'.obs;
-  final selectedWrapId = RxnString('wrap_2');
-  final selectedAddonIds = <String>{'a1', 'a2', 'a4'}.obs;
+  final selectedCardId = ''.obs;
+  final selectedWrapId = RxnString();
+  final selectedAddonIds = <String>{}.obs;
   final addonCategoryId = 'all'.obs;
 
   final giftFrom = ''.obs;
@@ -54,116 +62,25 @@ class BasketController extends GetxController {
   final giftMessage = ''.obs;
   static const messageMax = 150;
 
-  final giftCards = const [
-    BasketOption(
-      id: 'card_wedding',
-      title: 'مبارك الزواج',
-      price: 2000,
-      imageAsset: 'assets/images/basket/card_1.jpg',
-    ),
-    BasketOption(
-      id: 'card_grad',
-      title: 'مبارك التخرج',
-      price: 2000,
-      imageAsset: 'assets/images/basket/card_3.jpg',
-    ),
-    BasketOption(
-      id: 'card_bday',
-      title: 'ميلاد سعيد',
-      price: 2000,
-      imageAsset: 'assets/images/basket/card_2.jpg',
-    ),
-    BasketOption(
-      id: 'card_grad2',
-      title: 'مبروك التخرج',
-      price: 2000,
-      imageAsset: 'assets/images/basket/card_3.jpg',
-    ),
-  ];
+  final giftCards = <BasketOption>[].obs;
+  final wraps = <BasketOption>[].obs;
+  final addons = <BasketOption>[].obs;
 
-  final wraps = const [
-    BasketOption(
-      id: 'wrap_1',
-      title: 'ورق كلاسيكي فاخر',
-      price: 10000,
-      imageAsset: 'assets/images/basket/wrap_1.jpg',
-    ),
-    BasketOption(
-      id: 'wrap_2',
-      title: 'ورق كلاسيكي فاخر',
-      price: 10000,
-      imageAsset: 'assets/images/basket/wrap_2.jpg',
-    ),
-    BasketOption(
-      id: 'wrap_3',
-      title: 'ورق كلاسيكي فاخر',
-      price: 10000,
-      imageAsset: 'assets/images/basket/wrap_3.jpg',
-    ),
-    BasketOption(
-      id: 'wrap_4',
-      title: 'ورق كلاسيكي فاخر',
-      price: 10000,
-      imageAsset: 'assets/images/basket/wrap_4.jpg',
-    ),
-    BasketOption(
-      id: 'wrap_5',
-      title: 'ورق كلاسيكي فاخر',
-      price: 10000,
-      imageAsset: 'assets/images/basket/wrap_1.jpg',
-    ),
-    BasketOption(
-      id: 'wrap_6',
-      title: 'ورق كلاسيكي فاخر',
-      price: 10000,
-      imageAsset: 'assets/images/basket/wrap_3.jpg',
-    ),
-  ];
+  final _orderSubtotal = 0.obs;
+  final _wrapPrice = 0.obs;
+  final _addonsPrice = 0.obs;
+  final _cardPrice = 0.obs;
+  final _deliveryPrice = 0.obs;
+  final _totalPrice = 0.obs;
+  final _hasFreeDelivery = false.obs;
 
-  final addons = const [
-    BasketOption(
-      id: 'a1',
-      title: 'شوكولاه فاخرة',
-      price: 10000,
-      imageAsset: 'assets/images/basket/addon_1.jpg',
-      category: 'chocolate',
-    ),
-    BasketOption(
-      id: 'a2',
-      title: 'بالونات احتفال',
-      price: 10000,
-      imageAsset: 'assets/images/basket/addon_2.jpg',
-      category: 'balloons',
-    ),
-    BasketOption(
-      id: 'a3',
-      title: 'شموع معطرة',
-      price: 10000,
-      imageAsset: 'assets/images/basket/addon_3.jpg',
-      category: 'candles',
-    ),
-    BasketOption(
-      id: 'a4',
-      title: 'صندوق احتفال',
-      price: 10000,
-      imageAsset: 'assets/images/basket/addon_4.jpg',
-      category: 'party',
-    ),
-    BasketOption(
-      id: 'a5',
-      title: 'لافندر مجفف',
-      price: 10000,
-      imageAsset: 'assets/images/basket/addon_1.jpg',
-      category: 'lavender',
-    ),
-    BasketOption(
-      id: 'a6',
-      title: 'إضافة مميزة',
-      price: 10000,
-      imageAsset: 'assets/images/basket/addon_3.jpg',
-      category: 'chocolate',
-    ),
-  ];
+  int get orderSubtotal => _orderSubtotal.value;
+  int get wrapPrice => _wrapPrice.value;
+  int get addonsPrice => _addonsPrice.value;
+  int get cardPrice => _cardPrice.value;
+  int get deliveryPrice => _deliveryPrice.value;
+  int get totalPrice => _totalPrice.value;
+  bool get hasFreeDelivery => _hasFreeDelivery.value;
 
   final addonCategories = const [
     ('all', 'common_all'),
@@ -174,64 +91,196 @@ class BasketController extends GetxController {
     ('lavender', 'fav_cat_lavender'),
   ];
 
+  ApiClient get _api => Get.find<ApiClient>();
+
   @override
   void onInit() {
     super.onInit();
-    items.assignAll([
-      BasketItem(
-        id: 'b1',
-        code: '#23iS26',
-        title: 'mock_orchid_bouquet',
-        subtitle: '26 وردة رائعة , نفاثة الرائحة العطرة',
-        imageAsset: 'assets/images/basket/cart_item.jpg',
-        unitPrice: 63000,
-        qty: 2,
-      ),
-      BasketItem(
-        id: 'b2',
-        code: '#23iS26',
-        title: 'mock_orchid_bouquet',
-        subtitle: 'orders_custom_wrap',
-        imageAsset: 'assets/images/basket/cart_item.jpg',
-        unitPrice: 126000,
-        qty: 1,
-      ),
-    ]);
+    loadCart();
+    loadCatalogOptions();
   }
 
-  int get orderSubtotal => items.fold(0, (s, i) => s + i.lineTotal);
-
-  int get wrapPrice {
-    final id = selectedWrapId.value;
-    if (id == null) return 0;
-    return wraps.firstWhere((w) => w.id == id, orElse: () => wraps.first).price;
+  bool _requireAuth() {
+    if (!Get.find<AuthController>().isAuthenticated) {
+      Get.toNamed('/login');
+      return false;
+    }
+    return true;
   }
 
-  int get addonsPrice => selectedAddonIds.fold(0, (s, id) {
-        final o = addons.where((a) => a.id == id);
-        return s + (o.isEmpty ? 0 : o.first.price);
+  BasketOption _mapOption(Map<String, dynamic> m) {
+    final image = m['image'] as String? ?? '';
+    return BasketOption(
+      id: '${m['id']}',
+      title: (m['title_ar'] ?? m['title'] ?? '') as String,
+      price: (m['price'] as num?)?.toInt() ?? 0,
+      imageAsset: ApiConfig.imageUrl(image) ??
+          (image.isEmpty ? 'assets/images/basket/cart_item.jpg' : image),
+      category: (m['category'] as String?) ?? 'all',
+    );
+  }
+
+  void _applyCart(Map<String, dynamic> data) {
+    final mappedItems = (data['items'] as List? ?? [])
+        .whereType<Map>()
+        .map((e) {
+          final m = Map<String, dynamic>.from(e);
+          final image = m['image'] as String? ?? '';
+          final productId = (m['product_id'] as num?)?.toInt();
+          return BasketItem(
+            id: '${m['id']}',
+            code: productId != null ? '#$productId' : '#${m['id']}',
+            title: (m['title_ar'] ?? m['title'] ?? '') as String,
+            subtitle: '',
+            imageAsset: ApiConfig.imageUrl(image) ??
+                (image.isEmpty
+                    ? 'assets/images/basket/cart_item.jpg'
+                    : image),
+            unitPrice: (m['unit_price'] as num?)?.toInt() ?? 0,
+            qty: (m['qty'] as num?)?.toInt() ?? 1,
+            productId: productId,
+          );
+        })
+        .toList();
+    items.assignAll(mappedItems);
+
+    final giftCard = data['gift_card'];
+    if (giftCard is Map) {
+      selectedCardId.value = '${giftCard['id']}';
+    } else {
+      selectedCardId.value = '';
+    }
+
+    final wrap = data['wrap'];
+    if (wrap is Map) {
+      selectedWrapId.value = '${wrap['id']}';
+    } else {
+      selectedWrapId.value = null;
+    }
+
+    final addonList = (data['addons'] as List? ?? [])
+        .whereType<Map>()
+        .map((e) => '${e['id']}')
+        .toSet();
+    selectedAddonIds
+      ..clear()
+      ..addAll(addonList);
+
+    giftFrom.value = (data['gift_from'] as String?) ?? '';
+    giftTo.value = (data['gift_to'] as String?) ?? '';
+    giftMessage.value = (data['gift_message'] as String?) ?? '';
+
+    final pricing = data['pricing'];
+    if (pricing is Map) {
+      _orderSubtotal.value = (pricing['subtotal'] as num?)?.toInt() ?? 0;
+      _wrapPrice.value = (pricing['wrap_price'] as num?)?.toInt() ?? 0;
+      _addonsPrice.value = (pricing['addons_price'] as num?)?.toInt() ?? 0;
+      _cardPrice.value = (pricing['card_price'] as num?)?.toInt() ?? 0;
+      _deliveryPrice.value = (pricing['delivery_price'] as num?)?.toInt() ?? 0;
+      _totalPrice.value = (pricing['total'] as num?)?.toInt() ?? 0;
+      _hasFreeDelivery.value = pricing['has_free_delivery'] as bool? ?? false;
+    } else {
+      _recalcLocal();
+    }
+  }
+
+  void _recalcLocal() {
+    _orderSubtotal.value = items.fold(0, (s, i) => s + i.lineTotal);
+    final wrapId = selectedWrapId.value;
+    _wrapPrice.value = wrapId == null
+        ? 0
+        : wraps.firstWhereOrNull((w) => w.id == wrapId)?.price ?? 0;
+    _addonsPrice.value = selectedAddonIds.fold(0, (s, id) {
+      final o = addons.firstWhereOrNull((a) => a.id == id);
+      return s + (o?.price ?? 0);
+    });
+    final cardId = selectedCardId.value;
+    _cardPrice.value = cardId.isEmpty
+        ? 0
+        : giftCards.firstWhereOrNull((c) => c.id == cardId)?.price ?? 0;
+    _hasFreeDelivery.value = _orderSubtotal.value >= 100000;
+    _deliveryPrice.value = _hasFreeDelivery.value ? 0 : 5000;
+    _totalPrice.value = _orderSubtotal.value +
+        _wrapPrice.value +
+        _addonsPrice.value +
+        _cardPrice.value +
+        _deliveryPrice.value;
+  }
+
+  Future<void> loadCart() async {
+    if (!_requireAuth()) return;
+    isLoading.value = true;
+    try {
+      final data = await _api.getCart();
+      _applyCart(data);
+    } on ApiException catch (e) {
+      Get.snackbar('common_app_name'.tr, e.message);
+    } catch (_) {
+      Get.snackbar('common_app_name'.tr, 'auth_error_generic'.tr);
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  Future<void> loadCatalogOptions() async {
+    try {
+      final cards = await _api.getGiftCards();
+      giftCards.assignAll(
+        cards
+            .whereType<Map>()
+            .map((e) => _mapOption(Map<String, dynamic>.from(e))),
+      );
+      final wrapRows = await _api.getWraps();
+      wraps.assignAll(
+        wrapRows
+            .whereType<Map>()
+            .map((e) => _mapOption(Map<String, dynamic>.from(e))),
+      );
+      final addonRows = await _api.getAddons();
+      addons.assignAll(
+        addonRows
+            .whereType<Map>()
+            .map((e) => _mapOption(Map<String, dynamic>.from(e))),
+      );
+    } catch (_) {
+      // keep empty option lists
+    }
+  }
+
+  Future<void> addProductFromApi(int productId) async {
+    if (!_requireAuth()) return;
+    final data = await _api.addCartItem(productId: productId);
+    _applyCart(data);
+  }
+
+  Future<void> persistOptions() async {
+    if (!_requireAuth()) return;
+    try {
+      final data = await _api.updateCartOptions({
+        'gift_card_id': int.tryParse(selectedCardId.value),
+        'wrap_id': selectedWrapId.value == null
+            ? null
+            : int.tryParse(selectedWrapId.value!),
+        'addon_ids': selectedAddonIds
+            .map(int.tryParse)
+            .whereType<int>()
+            .toList(),
+        'gift_from': giftFrom.value,
+        'gift_to': giftTo.value,
+        'gift_message': giftMessage.value,
       });
-
-  int get cardPrice {
-    final id = selectedCardId.value;
-    final o = giftCards.where((c) => c.id == id);
-    return o.isEmpty ? 0 : o.first.price;
+      _applyCart(data);
+    } on ApiException catch (e) {
+      Get.snackbar('common_app_name'.tr, e.message);
+    }
   }
-
-  int get deliveryPrice => orderSubtotal >= 100000 ? 0 : 5000;
-
-  int get totalPrice =>
-      orderSubtotal + wrapPrice + addonsPrice + cardPrice + deliveryPrice;
-
-  bool get hasFreeDelivery => orderSubtotal >= 100000;
 
   String get wrapLabel {
     final id = selectedWrapId.value;
     if (id == null) return 'common_not_set'.tr;
-    return wraps
-        .firstWhere((w) => w.id == id, orElse: () => wraps.first)
-        .title
-        .tr;
+    final wrap = wraps.firstWhereOrNull((w) => w.id == id);
+    if (wrap == null) return 'common_not_set'.tr;
+    return wrap.title.tr;
   }
 
   String money(int value) {
@@ -247,49 +296,86 @@ class BasketController extends GetxController {
 
   void togglePriceDetails() => priceExpanded.toggle();
 
-  void clearCart() => items.clear();
-
-  void incrementQty(String id) {
-    final i = items.indexWhere((e) => e.id == id);
-    if (i < 0) return;
-    items[i].qty++;
-    items.refresh();
-  }
-
-  void decrementQty(String id) {
-    final i = items.indexWhere((e) => e.id == id);
-    if (i < 0) return;
-    if (items[i].qty <= 1) {
-      items.removeAt(i);
-    } else {
-      items[i].qty--;
-      items.refresh();
+  Future<void> clearCart() async {
+    if (!_requireAuth()) return;
+    try {
+      await _api.clearCart();
+      items.clear();
+      selectedCardId.value = '';
+      selectedWrapId.value = null;
+      selectedAddonIds.clear();
+      giftFrom.value = '';
+      giftTo.value = '';
+      giftMessage.value = '';
+      _recalcLocal();
+    } on ApiException catch (e) {
+      Get.snackbar('common_app_name'.tr, e.message);
     }
   }
 
-  void selectCard(String id) => selectedCardId.value = id;
+  Future<void> incrementQty(String id) async {
+    if (!_requireAuth()) return;
+    final i = items.indexWhere((e) => e.id == id);
+    if (i < 0) return;
+    final itemId = int.tryParse(id);
+    if (itemId == null) return;
+    final next = items[i].qty + 1;
+    try {
+      final data = await _api.updateCartItem(itemId: itemId, qty: next);
+      _applyCart(data);
+    } on ApiException catch (e) {
+      Get.snackbar('common_app_name'.tr, e.message);
+    }
+  }
 
-  void selectWrap(String id) {
+  Future<void> decrementQty(String id) async {
+    if (!_requireAuth()) return;
+    final i = items.indexWhere((e) => e.id == id);
+    if (i < 0) return;
+    final itemId = int.tryParse(id);
+    if (itemId == null) return;
+    final next = items[i].qty - 1;
+    try {
+      if (next <= 0) {
+        final data = await _api.deleteCartItem(itemId);
+        _applyCart(data);
+      } else {
+        final data = await _api.updateCartItem(itemId: itemId, qty: next);
+        _applyCart(data);
+      }
+    } on ApiException catch (e) {
+      Get.snackbar('common_app_name'.tr, e.message);
+    }
+  }
+
+  Future<void> selectCard(String id) async {
+    selectedCardId.value = id;
+    await persistOptions();
+  }
+
+  Future<void> selectWrap(String id) async {
     if (selectedWrapId.value == id) {
       selectedWrapId.value = null;
     } else {
       selectedWrapId.value = id;
     }
+    await persistOptions();
   }
 
-  void toggleAddon(String id) {
+  Future<void> toggleAddon(String id) async {
     if (selectedAddonIds.contains(id)) {
       selectedAddonIds.remove(id);
     } else {
       selectedAddonIds.add(id);
     }
+    await persistOptions();
   }
 
   void setAddonCategory(String id) => addonCategoryId.value = id;
 
   List<BasketOption> get filteredAddons {
     final cat = addonCategoryId.value;
-    if (cat == 'all') return addons;
+    if (cat == 'all') return addons.toList();
     return addons.where((a) => a.category == cat).toList();
   }
 

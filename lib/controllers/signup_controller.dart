@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '../core/errors/api_exception.dart';
+import '../services/api_client.dart';
 import '../utils/app_utils.dart';
+import 'auth_controller.dart';
 
 /// محافظات العراق — مفاتيح ترجمة (`gov_*`).
 const kIraqGovernorates = <String>[
@@ -29,6 +32,7 @@ const kIraqGovernorates = <String>[
 class SignupController extends GetxController {
   final RxString name = ''.obs;
   final RxString phone = ''.obs;
+  final RxString password = ''.obs;
   final RxnString governorate = RxnString();
   final RxBool isLoading = false.obs;
   final RxnString errorMessage = RxnString();
@@ -51,6 +55,11 @@ class SignupController extends GetxController {
       return;
     }
 
+    if (password.value.trim().length < 6) {
+      errorMessage.value = 'auth_error_password'.tr;
+      return;
+    }
+
     if (governorate.value == null || governorate.value!.isEmpty) {
       errorMessage.value = 'auth_error_governorate'.tr;
       return;
@@ -58,8 +67,24 @@ class SignupController extends GetxController {
 
     isLoading.value = true;
     try {
-      await Future<void>.delayed(const Duration(milliseconds: 250));
+      final api = Get.find<ApiClient>();
+      final auth = Get.find<AuthController>();
+      final result = await api.register(
+        phone: cleaned,
+        password: password.value,
+        name: name.value.trim(),
+        governorate: governorate.value!,
+      );
+      await auth.setSession(
+        accessToken: result.accessToken,
+        refreshToken: result.refreshToken,
+        loggedInUser: result.user,
+      );
       Get.offAllNamed('/home');
+    } on ApiException catch (e) {
+      errorMessage.value = e.message;
+    } catch (_) {
+      errorMessage.value = 'auth_error_generic'.tr;
     } finally {
       isLoading.value = false;
     }

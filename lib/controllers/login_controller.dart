@@ -1,39 +1,59 @@
 import 'package:get/get.dart';
 
+import '../core/errors/api_exception.dart';
+import '../services/api_client.dart';
 import '../utils/app_utils.dart';
+import 'auth_controller.dart';
 
-/// منطق شاشة تسجيل الدخول (رقم الهاتف أولاً حسب التصميم).
+/// منطق شاشة تسجيل الدخول (هاتف + كلمة مرور).
 class LoginController extends GetxController {
   final RxString phone = ''.obs;
+  final RxString password = ''.obs;
   final RxBool isLoading = false.obs;
   final RxnString errorMessage = RxnString();
 
   void onPhoneChanged(String value) {
     phone.value = value;
-    if (errorMessage.value != null) {
-      errorMessage.value = null;
-    }
+    _clearError();
+  }
+
+  void onPasswordChanged(String value) {
+    password.value = value;
+    _clearError();
+  }
+
+  void _clearError() {
+    if (errorMessage.value != null) errorMessage.value = null;
   }
 
   Future<void> submit() async {
     errorMessage.value = null;
     final cleaned = phone.value.replaceAll(RegExp(r'\s+'), '');
 
-    if (!AppUtils.isNotBlank(cleaned)) {
+    if (!AppUtils.isNotBlank(cleaned) || !_isValidIraqiPhone(cleaned)) {
       errorMessage.value = 'auth_error_phone'.tr;
       return;
     }
-
-    if (!_isValidIraqiPhone(cleaned)) {
-      errorMessage.value = 'auth_error_phone'.tr;
+    if (password.value.trim().length < 6) {
+      errorMessage.value = 'auth_error_password'.tr;
       return;
     }
 
     isLoading.value = true;
     try {
-      // تدفق الهاتف أولاً — الانتقال للرئيسية حتى تتوفر شاشة OTP.
-      await Future<void>.delayed(const Duration(milliseconds: 250));
+      final api = Get.find<ApiClient>();
+      final auth = Get.find<AuthController>();
+      final result = await api.login(phone: cleaned, password: password.value);
+      await auth.setSession(
+        accessToken: result.accessToken,
+        refreshToken: result.refreshToken,
+        loggedInUser: result.user,
+      );
       Get.offAllNamed('/home');
+    } on ApiException catch (e) {
+      errorMessage.value = e.message;
+    } catch (_) {
+      errorMessage.value = 'auth_error_generic'.tr;
     } finally {
       isLoading.value = false;
     }

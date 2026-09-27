@@ -1,15 +1,13 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
+import '../core/errors/api_exception.dart';
 import '../models/occasion_reminder.dart';
+import '../services/api_client.dart';
+import 'auth_controller.dart';
 
 /// تحكم شاشة تذكير المناسبات.
 class RemindersController extends GetxController {
-  static const _storageKey = 'occasion_reminders_v1';
-
   final reminders = <OccasionReminder>[].obs;
   final isLoading = true.obs;
 
@@ -19,6 +17,8 @@ class RemindersController extends GetxController {
   final remindDaysBefore = 3.obs;
   final note = ''.obs;
   final editingId = RxnString();
+
+  ApiClient get _api => Get.find<ApiClient>();
 
   static const occasionTypes = <OccasionType>[
     OccasionType(
@@ -74,6 +74,14 @@ class RemindersController extends GetxController {
   void onInit() {
     super.onInit();
     _load();
+  }
+
+  bool _requireAuth() {
+    if (!Get.find<AuthController>().isAuthenticated) {
+      Get.toNamed('/login');
+      return false;
+    }
+    return true;
   }
 
   List<OccasionReminder> get upcoming {
@@ -161,7 +169,34 @@ class RemindersController extends GetxController {
     return personName.value.trim().isNotEmpty && selectedDate.value != null;
   }
 
+  Map<String, dynamic> _body({bool? notifyEnabled}) {
+    final date = selectedDate.value!;
+    final iso =
+        '${date.year.toString().padLeft(4, '0')}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+    return {
+      'person_name': personName.value.trim(),
+      'type_id': selectedTypeId.value,
+      'date': iso,
+      'notify_enabled': notifyEnabled ?? true,
+      'remind_days_before': remindDaysBefore.value,
+      'note': note.value.trim(),
+    };
+  }
+
+  OccasionReminder _fromApi(Map<String, dynamic> json) {
+    return OccasionReminder(
+      id: '${json['id']}',
+      personName: (json['person_name'] as String?) ?? '',
+      typeId: (json['type_id'] as String?) ?? 'birthday',
+      date: DateTime.parse(json['date'] as String),
+      notifyEnabled: json['notify_enabled'] as bool? ?? true,
+      remindDaysBefore: json['remind_days_before'] as int? ?? 3,
+      note: (json['note'] as String?) ?? '',
+    );
+  }
+
   Future<void> saveReminder() async {
+    if (!_requireAuth()) return;
     if (!canSave) {
       Get.snackbar(
         'common_app_name'.tr,
@@ -174,49 +209,61 @@ class RemindersController extends GetxController {
     }
 
     final id = editingId.value;
-    if (id == null) {
-      reminders.add(
-        OccasionReminder(
-          id: DateTime.now().millisecondsSinceEpoch.toString(),
-          personName: personName.value.trim(),
-          typeId: selectedTypeId.value,
-          date: selectedDate.value!,
-          remindDaysBefore: remindDaysBefore.value,
-          note: note.value.trim(),
-        ),
-      );
-    } else {
-      final index = reminders.indexWhere((e) => e.id == id);
-      if (index >= 0) {
-        reminders[index] = reminders[index].copyWith(
-          personName: personName.value.trim(),
-          typeId: selectedTypeId.value,
-          date: selectedDate.value!,
-          remindDaysBefore: remindDaysBefore.value,
-          note: note.value.trim(),
+    try {
+      if (id == null) {
+        final created = await _api.createReminder(_body());
+        reminders.add(_fromApi(created));
+      } else {
+        final existing = reminders.firstWhereOrNull((e) => e.id == id);
+        final updated = await _api.updateReminder(
+          int.parse(id),
+          _body(notifyEnabled: existing?.notifyEnabled),
         );
+        final index = reminders.indexWhere((e) => e.id == id);
+        if (index >= 0) {
+          reminders[index] = _fromApi(updated);
+        }
       }
+      Get.back();
+      Get.snackbar(
+        'common_app_name'.tr,
+        id == null ? 'rem_saved'.tr : 'rem_updated'.tr,
+        snackPosition: SnackPosition.BOTTOM,
+        margin: const EdgeInsets.all(16),
+        borderRadius: 12,
+      );
+    } on ApiException catch (e) {
+      Get.snackbar('common_app_name'.tr, e.message);
+    } catch (_) {
+      Get.snackbar('common_app_name'.tr, 'auth_error_generic'.tr);
     }
-
-    await _persist();
-    Get.back();
-    Get.snackbar(
-      'common_app_name'.tr,
-      id == null ? 'rem_saved'.tr : 'rem_updated'.tr,
-      snackPosition: SnackPosition.BOTTOM,
-      margin: const EdgeInsets.all(16),
-      borderRadius: 12,
-    );
   }
 
   Future<void> toggleNotify(String id, bool value) async {
+    if (!_requireAuth()) return;
     final index = reminders.indexWhere((e) => e.id == id);
     if (index < 0) return;
-    reminders[index] = reminders[index].copyWith(notifyEnabled: value);
-    await _persist();
+    final prev = reminders[index];
+    reminders[index] = prev.copyWith(notifyEnabled: value);
+    try {
+      final date = prev.date;
+      final iso =
+          '${date.year.toString().padLeft(4, '0')}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+      await _api.updateReminder(int.parse(id), {
+        'person_name': prev.personName,
+        'type_id': prev.typeId,
+        'date': iso,
+        'notify_enabled': value,
+        'remind_days_before': prev.remindDaysBefore,
+        'note': prev.note,
+      });
+    } catch (_) {
+      reminders[index] = prev;
+    }
   }
 
   Future<void> deleteReminder(String id) async {
+    if (!_requireAuth()) return;
     final confirm = await Get.dialog<bool>(
       AlertDialog(
         title: Text('rem_delete_title'.tr),
@@ -237,8 +284,13 @@ class RemindersController extends GetxController {
       ),
     );
     if (confirm != true) return;
+    final removed = reminders.firstWhereOrNull((e) => e.id == id);
     reminders.removeWhere((e) => e.id == id);
-    await _persist();
+    try {
+      await _api.deleteReminder(int.parse(id));
+    } catch (_) {
+      if (removed != null) reminders.add(removed);
+    }
   }
 
   DateTime _nextOccurrence(DateTime date) {
@@ -252,50 +304,24 @@ class RemindersController extends GetxController {
   }
 
   Future<void> _load() async {
+    if (!_requireAuth()) {
+      isLoading.value = false;
+      return;
+    }
     isLoading.value = true;
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final raw = prefs.getString(_storageKey);
-      if (raw == null || raw.isEmpty) {
-        reminders.assignAll(_seedReminders());
-        await _persist();
-      } else {
-        final list = (jsonDecode(raw) as List)
-            .cast<Map<String, dynamic>>()
-            .map(OccasionReminder.fromJson)
-            .toList();
-        reminders.assignAll(list);
-      }
+      final rows = await _api.getReminders();
+      reminders.assignAll(
+        rows
+            .whereType<Map>()
+            .map((e) => _fromApi(Map<String, dynamic>.from(e))),
+      );
+    } on ApiException catch (e) {
+      Get.snackbar('common_app_name'.tr, e.message);
     } catch (_) {
-      reminders.assignAll(_seedReminders());
+      // keep empty
     } finally {
       isLoading.value = false;
     }
-  }
-
-  Future<void> _persist() async {
-    final prefs = await SharedPreferences.getInstance();
-    final encoded = jsonEncode(reminders.map((e) => e.toJson()).toList());
-    await prefs.setString(_storageKey, encoded);
-  }
-
-  List<OccasionReminder> _seedReminders() {
-    final now = DateTime.now();
-    return [
-      OccasionReminder(
-        id: 'seed_1',
-        personName: 'أحمد',
-        typeId: 'birthday',
-        date: DateTime(now.year, now.month, now.day).add(const Duration(days: 5)),
-        remindDaysBefore: 3,
-      ),
-      OccasionReminder(
-        id: 'seed_2',
-        personName: 'سارة',
-        typeId: 'anniversary',
-        date: DateTime(now.year, now.month, now.day).add(const Duration(days: 18)),
-        remindDaysBefore: 7,
-      ),
-    ];
   }
 }

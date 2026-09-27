@@ -66,25 +66,31 @@ class SupportScreen extends GetView<SupportController> {
                   SizedBox(height: 12.h),
                   _SettingsCard(
                     children: [
-                      _ContactRow(
-                        title: 'support_phone'.tr,
-                        subtitle: SupportController.phone,
-                        icon: Icons.phone_outlined,
-                        onTap: controller.contactPhone,
+                      Obx(
+                        () => _ContactRow(
+                          title: 'support_phone'.tr,
+                          subtitle: controller.phone.value,
+                          icon: Icons.phone_outlined,
+                          onTap: controller.contactPhone,
+                        ),
                       ),
                       const _Divider(),
-                      _ContactRow(
-                        title: 'support_whatsapp'.tr,
-                        subtitle: SupportController.whatsapp,
-                        icon: Icons.chat_bubble_outline_rounded,
-                        onTap: controller.contactWhatsApp,
+                      Obx(
+                        () => _ContactRow(
+                          title: 'support_whatsapp'.tr,
+                          subtitle: controller.whatsapp.value,
+                          icon: Icons.chat_bubble_outline_rounded,
+                          onTap: controller.contactWhatsApp,
+                        ),
                       ),
                       const _Divider(),
-                      _ContactRow(
-                        title: 'support_email'.tr,
-                        subtitle: SupportController.email,
-                        icon: Icons.mail_outline_rounded,
-                        onTap: controller.contactEmail,
+                      Obx(
+                        () => _ContactRow(
+                          title: 'support_email'.tr,
+                          subtitle: controller.email.value,
+                          icon: Icons.mail_outline_rounded,
+                          onTap: controller.contactEmail,
+                        ),
                       ),
                     ],
                   ),
@@ -125,14 +131,16 @@ class SupportScreen extends GetView<SupportController> {
                         ),
                         SizedBox(width: 12.w),
                         Expanded(
-                          child: Text(
-                            SupportController.hours.tr,
-                            style: TextStyle(
-                              fontFamily: kFontFamily,
-                              fontSize: 13.sp,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.onboardingText,
-                              height: 1.45,
+                          child: Obx(
+                            () => Text(
+                              controller.hours.value.tr,
+                              style: TextStyle(
+                                fontFamily: kFontFamily,
+                                fontSize: 13.sp,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.onboardingText,
+                                height: 1.45,
+                              ),
                             ),
                           ),
                         ),

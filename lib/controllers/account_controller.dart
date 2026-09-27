@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '../core/errors/api_exception.dart';
+import '../services/api_client.dart';
+import '../services/token_storage.dart';
 import '../widgets/account/account_action_dialog.dart';
 import '../widgets/account/edit_profile_dialog.dart';
 import '../widgets/account/language_dialog.dart';
@@ -10,9 +13,11 @@ import 'locale_controller.dart';
 /// تحكم شاشة الحساب والإعدادات.
 class AccountController extends GetxController {
   final notificationsEnabled = true.obs;
+  final isSavingProfile = false.obs;
 
   LocaleController get _locale => Get.find<LocaleController>();
   AuthController get _auth => Get.find<AuthController>();
+  ApiClient get _api => Get.find<ApiClient>();
 
   /// اللغة المحفوظة للتطبيق (`ar` | `en`).
   String get selectedLanguage => _locale.languageCode.value;
@@ -58,9 +63,7 @@ class AccountController extends GetxController {
 
   void editProfile() {
     final user = _auth.user.value;
-    final name = (user?.name.isNotEmpty ?? false)
-        ? user!.name
-        : '';
+    final name = (user?.name.isNotEmpty ?? false) ? user!.name : '';
     final phone = user?.phone ?? '';
     pendingName.value = name;
     pendingPhone.value = phone;
@@ -69,7 +72,7 @@ class AccountController extends GetxController {
     EditProfileDialog.show();
   }
 
-  void confirmEditProfile() {
+  Future<void> confirmEditProfile() async {
     final name = pendingName.value.trim();
     final phone = pendingPhone.value.trim();
 
@@ -95,15 +98,40 @@ class AccountController extends GetxController {
       return;
     }
 
-    _auth.updateProfile(name: name, phone: phone);
-    Get.back();
-    Get.snackbar(
-      'common_app_name'.tr,
-      'edit_profile_saved'.tr,
-      snackPosition: SnackPosition.BOTTOM,
-      margin: const EdgeInsets.all(16),
-      borderRadius: 12,
-    );
+    isSavingProfile.value = true;
+    try {
+      final user = await _api.updateProfile({
+        'name': name,
+        'phone': phone.replaceAll(RegExp(r'\s'), ''),
+      });
+      _auth.user.value = user;
+      Get.back();
+      Get.snackbar(
+        'common_app_name'.tr,
+        'edit_profile_saved'.tr,
+        snackPosition: SnackPosition.BOTTOM,
+        margin: const EdgeInsets.all(16),
+        borderRadius: 12,
+      );
+    } on ApiException catch (e) {
+      Get.snackbar(
+        'common_app_name'.tr,
+        e.message,
+        snackPosition: SnackPosition.BOTTOM,
+        margin: const EdgeInsets.all(16),
+        borderRadius: 12,
+      );
+    } catch (_) {
+      Get.snackbar(
+        'common_app_name'.tr,
+        'auth_error_generic'.tr,
+        snackPosition: SnackPosition.BOTTOM,
+        margin: const EdgeInsets.all(16),
+        borderRadius: 12,
+      );
+    } finally {
+      isSavingProfile.value = false;
+    }
   }
 
   void openLanguage() {
@@ -145,8 +173,16 @@ class AccountController extends GetxController {
 
   Future<void> deleteAccount() async {
     final confirm = await AccountActionDialog.showDelete();
-    if (confirm == true) {
-      await _auth.logout();
+    if (confirm != true) return;
+    try {
+      await _api.deleteAccount();
+    } catch (_) {
+      // still clear local session
     }
+    try {
+      await Get.find<TokenStorage>().clearTokens();
+    } catch (_) {}
+    _auth.user.value = null;
+    Get.offAllNamed('/login');
   }
 }

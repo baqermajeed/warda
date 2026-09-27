@@ -1,6 +1,10 @@
 import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../core/errors/api_exception.dart';
+import '../services/api_client.dart';
+import '../utils/product_mapper.dart';
+import 'auth_controller.dart';
 import 'home_controller.dart';
 
 /// خيار داخل فلتر موسّع.
@@ -40,10 +44,12 @@ class CategoriesController extends GetxController {
   final expandedFilterId = RxnString();
   final selectedOptions = <String, String>{}.obs;
   final searchHistory = <String>[].obs;
-  final resultsCount = 26.obs;
+  final resultsCount = 0.obs;
   final favoriteIds = <String>{}.obs;
   final sortBy = ResultsSort.newest.obs;
   final isGridView = true.obs;
+  final results = <HomeProduct>[].obs;
+  final isLoading = false.obs;
 
   final filters = const [
     CategoryFilter(
@@ -113,85 +119,12 @@ class CategoriesController extends GetxController {
     ),
   ];
 
-  late final List<HomeProduct> _catalog;
+  ApiClient get _api => Get.find<ApiClient>();
 
   @override
   void onInit() {
     super.onInit();
     _loadHistory();
-    selectedOptions['person'] = 'sibling';
-    const title = 'mock_orchid_bouquet';
-    const price = '10,000';
-    _catalog = const [
-      HomeProduct(
-        id: 'r1',
-        title: title,
-        priceLabel: price,
-        imageAsset: 'assets/images/home/product_1.png',
-        isFavorite: true,
-      ),
-      HomeProduct(
-        id: 'r2',
-        title: title,
-        priceLabel: price,
-        imageAsset: 'assets/images/home/product_2.png',
-      ),
-      HomeProduct(
-        id: 'r3',
-        title: title,
-        priceLabel: price,
-        imageAsset: 'assets/images/home/product_3.png',
-      ),
-      HomeProduct(
-        id: 'r4',
-        title: title,
-        priceLabel: price,
-        imageAsset: 'assets/images/home/product_4.png',
-      ),
-      HomeProduct(
-        id: 'r5',
-        title: title,
-        priceLabel: price,
-        imageAsset: 'assets/images/home/product_5.png',
-      ),
-      HomeProduct(
-        id: 'r6',
-        title: title,
-        priceLabel: price,
-        imageAsset: 'assets/images/home/product_6.png',
-        isFavorite: true,
-      ),
-      HomeProduct(
-        id: 'r7',
-        title: title,
-        priceLabel: price,
-        imageAsset: 'assets/images/home/product_7.png',
-      ),
-      HomeProduct(
-        id: 'r8',
-        title: title,
-        priceLabel: price,
-        imageAsset: 'assets/images/home/product_8.png',
-      ),
-    ];
-    for (final p in _catalog) {
-      if (p.isFavorite) favoriteIds.add(p.id);
-    }
-    resultsCount.value = _catalog.length;
-  }
-
-  List<HomeProduct> get results {
-    final list = List<HomeProduct>.from(_catalog);
-    switch (sortBy.value) {
-      case ResultsSort.priceAsc:
-      case ResultsSort.newest:
-        break;
-      case ResultsSort.priceDesc:
-        return list.reversed.toList();
-      case ResultsSort.popular:
-        list.sort((a, b) => b.rating.compareTo(a.rating));
-    }
-    return list;
   }
 
   List<({String filterId, String label})> get activeFilterChips {
@@ -221,6 +154,22 @@ class CategoriesController extends GetxController {
     }
   }
 
+  String get _apiSort {
+    final price = selectedOptions['price'];
+    if (price == 'asc') return 'priceAsc';
+    if (price == 'desc') return 'priceDesc';
+    switch (sortBy.value) {
+      case ResultsSort.newest:
+        return 'newest';
+      case ResultsSort.priceAsc:
+        return 'priceAsc';
+      case ResultsSort.priceDesc:
+        return 'priceDesc';
+      case ResultsSort.popular:
+        return 'popular';
+    }
+  }
+
   Future<void> _loadHistory() async {
     final prefs = await SharedPreferences.getInstance();
     searchHistory.assignAll(prefs.getStringList(_historyKey) ?? []);
@@ -235,6 +184,34 @@ class CategoriesController extends GetxController {
     searchQuery.value = value;
   }
 
+  Future<void> loadResults() async {
+    isLoading.value = true;
+    try {
+      final data = await _api.getProducts(
+        q: searchQuery.value.trim().isEmpty ? null : searchQuery.value.trim(),
+        person: selectedOptions['person'],
+        occasion: selectedOptions['occasion'],
+        giftType: selectedOptions['gift_type'],
+        budget: selectedOptions['budget'],
+        delivery: selectedOptions['delivery'],
+        sort: _apiSort,
+        pageSize: 40,
+      );
+      final mapped = mapHomeProductList(data['items']);
+      results.assignAll(mapped);
+      resultsCount.value = (data['total'] as num?)?.toInt() ?? mapped.length;
+      favoriteIds
+        ..clear()
+        ..addAll(mapped.where((p) => p.isFavorite).map((p) => p.id));
+    } on ApiException catch (e) {
+      Get.snackbar('common_app_name'.tr, e.message);
+    } catch (_) {
+      Get.snackbar('common_app_name'.tr, 'auth_error_generic'.tr);
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
   Future<void> submitSearch([String? raw]) async {
     final q = (raw ?? searchQuery.value).trim();
     if (q.isEmpty) return;
@@ -245,6 +222,7 @@ class CategoriesController extends GetxController {
       searchHistory.removeRange(8, searchHistory.length);
     }
     await _saveHistory();
+    await loadResults();
     Get.offNamed('/search-results');
   }
 
@@ -290,26 +268,55 @@ class CategoriesController extends GetxController {
     return null;
   }
 
-  void setSort(ResultsSort value) {
+  Future<void> setSort(ResultsSort value) async {
     sortBy.value = value;
+    await loadResults();
   }
 
   void toggleGridView() {
     isGridView.value = !isGridView.value;
   }
 
-  void toggleFavorite(String productId) {
-    if (favoriteIds.contains(productId)) {
+  Future<void> toggleFavorite(String productId) async {
+    if (!Get.find<AuthController>().isAuthenticated) {
+      Get.toNamed('/login');
+      return;
+    }
+    final id = int.tryParse(productId);
+    if (id == null) return;
+    final wasFav = favoriteIds.contains(productId);
+    if (wasFav) {
       favoriteIds.remove(productId);
     } else {
       favoriteIds.add(productId);
+    }
+    try {
+      if (wasFav) {
+        await _api.removeFavorite(id);
+      } else {
+        await _api.addFavorite(id);
+      }
+      if (Get.isRegistered<HomeController>()) {
+        final home = Get.find<HomeController>();
+        if (wasFav) {
+          home.favoriteIds.remove(productId);
+        } else {
+          home.favoriteIds.add(productId);
+        }
+      }
+    } catch (_) {
+      if (wasFav) {
+        favoriteIds.add(productId);
+      } else {
+        favoriteIds.remove(productId);
+      }
     }
   }
 
   bool isFavorite(String productId) => favoriteIds.contains(productId);
 
-  void showResults() {
-    resultsCount.value = _catalog.length;
+  Future<void> showResults() async {
+    await loadResults();
     openResults();
   }
 
@@ -322,8 +329,8 @@ class CategoriesController extends GetxController {
 
   void openFilterSort() => Get.toNamed('/filter-sort');
 
-  void applyFiltersFromSheet() {
-    resultsCount.value = _catalog.length;
+  Future<void> applyFiltersFromSheet() async {
+    await loadResults();
     if (Get.previousRoute == '/search-results') {
       Get.back();
     } else {

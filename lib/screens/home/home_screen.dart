@@ -17,46 +17,49 @@ class HomeScreen extends GetView<HomeController> {
   Widget build(BuildContext context) {
     return ColoredBox(
       color: Colors.white,
-      child: CustomScrollView(
-        slivers: [
-          SliverToBoxAdapter(child: _HomeBanner(controller: controller)),
-          // Header floats over banner visually via negative offset area —
-          // we place header as overlay in a Stack at the top of the scroll.
-          SliverToBoxAdapter(
-            child: Transform.translate(
-              offset: Offset(0, -56.h),
-              child: Padding(
-                padding: EdgeInsets.symmetric(horizontal: 20.w),
-                child: Column(
-                  children: [
-                    SizedBox(height: 56.h),
-                    _CategoriesSection(controller: controller),
-                    SizedBox(height: 26.h),
-                    _ProductSection(
-                      title: 'home_latest'.tr,
-                      products: controller.latestGifts,
-                      horizontal: true,
-                    ),
-                    _SectionDivider(),
-                    _ProductSection(
-                      title: 'home_popular'.tr,
-                      products: controller.popularGifts,
-                      horizontal: true,
-                    ),
-                    _SectionDivider(),
-                    _ProductSection(
-                      title: 'home_all_gifts'.tr,
-                      products: controller.allGifts,
-                      horizontal: false,
-                    ),
-                    SizedBox(height: 120.h),
-                  ],
+      child: Obx(() {
+        if (controller.isLoading.value) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        return CustomScrollView(
+          slivers: [
+            SliverToBoxAdapter(child: _HomeBanner(controller: controller)),
+            SliverToBoxAdapter(
+              child: Transform.translate(
+                offset: Offset(0, -56.h),
+                child: Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 20.w),
+                  child: Column(
+                    children: [
+                      SizedBox(height: 56.h),
+                      _CategoriesSection(controller: controller),
+                      SizedBox(height: 26.h),
+                      _ProductSection(
+                        title: 'home_latest'.tr,
+                        products: controller.latestGifts.toList(),
+                        horizontal: true,
+                      ),
+                      _SectionDivider(),
+                      _ProductSection(
+                        title: 'home_popular'.tr,
+                        products: controller.popularGifts.toList(),
+                        horizontal: true,
+                      ),
+                      _SectionDivider(),
+                      _ProductSection(
+                        title: 'home_all_gifts'.tr,
+                        products: controller.allGifts.toList(),
+                        horizontal: false,
+                      ),
+                      SizedBox(height: 120.h),
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
-        ],
-      ),
+          ],
+        );
+      }),
     );
   }
 }

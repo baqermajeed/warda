@@ -65,6 +65,9 @@ const Map<String, String> _ar = {
   'auth_error_phone':
       'رقم الهاتف غير صحيح , تأكد من عدم وجود مسافة',
   'auth_error_governorate': 'اختر محافظتك',
+  'auth_password_hint': 'أكتب كلمة المرور',
+  'auth_error_password': 'كلمة المرور يجب أن تكون 6 أحرف على الأقل',
+  'auth_error_generic': 'تعذر إتمام العملية، حاول مرة أخرى',
   'auth_default_user': 'مستخدم',
 
   // governorates
@@ -578,6 +581,9 @@ const Map<String, String> _en = {
   'auth_error_phone':
       'Invalid phone number; make sure there are no spaces',
   'auth_error_governorate': 'Choose your governorate',
+  'auth_password_hint': 'Enter password',
+  'auth_error_password': 'Password must be at least 6 characters',
+  'auth_error_generic': 'Something went wrong, please try again',
   'auth_default_user': 'User',
 
   // governorates

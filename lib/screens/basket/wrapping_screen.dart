@@ -6,6 +6,7 @@ import 'package:get/get.dart';
 import '../../controllers/basket_controller.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
+import '../../widgets/common/app_image.dart';
 
 /// صفحة اختيار التغليف.
 class WrappingScreen extends GetView<BasketController> {
@@ -129,11 +130,9 @@ class _SelectCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Expanded(
-            child: Image.asset(
-              option.imageAsset,
+            child: AppImage(
+              source: option.imageAsset,
               fit: BoxFit.cover,
-              cacheWidth: 400,
-              cacheHeight: 400,
             ),
           ),
           Padding(

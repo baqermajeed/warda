@@ -1,0 +1,49 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: warda
+      POSTGRES_USER: warda
+      POSTGRES_PASSWORD: warda
+    ports:
+      - "5432:5432"
+    volumes:
+      - warda_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U warda"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - warda_redis:/data
+
+  api:
+    build: .
+    environment:
+      APP_NAME: Warda
+      APP_ENV: development
+      SECRET_KEY: warda-dev-change-me-please
+      DATABASE_URL: postgresql+psycopg://warda:warda@db:5432/warda
+      REDIS_URL: redis://redis:6379/0
+      CORS_ORIGINS: "*"
+      TRUSTED_HOSTS: localhost,127.0.0.1,api
+      OTP_DEV_RETURN_CODE: "true"
+      UPLOAD_DIR: /app/uploads
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./uploads:/app/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+volumes:
+  warda_pg:
+  warda_redis:

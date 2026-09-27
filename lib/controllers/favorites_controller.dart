@@ -1,5 +1,9 @@
 import 'package:get/get.dart';
 
+import '../core/errors/api_exception.dart';
+import '../services/api_client.dart';
+import '../utils/product_mapper.dart';
+import 'auth_controller.dart';
 import 'home_controller.dart';
 
 /// تصنيف فلتر في شاشة المفضلة.
@@ -14,6 +18,8 @@ class FavoriteCategory {
 class FavoritesController extends GetxController {
   final selectedCategoryId = 'all'.obs;
   final items = <HomeProduct>[].obs;
+  final isLoading = false.obs;
+  final RxnString errorMessage = RxnString();
 
   final categories = const [
     FavoriteCategory(id: 'all', label: 'common_all'),
@@ -24,110 +30,79 @@ class FavoritesController extends GetxController {
     FavoriteCategory(id: 'lavender', label: 'fav_cat_lavender'),
   ];
 
-  late final List<HomeProduct> _catalog;
-  late final Map<String, String> _productCategories;
+  ApiClient get _api => Get.find<ApiClient>();
+
+  List<HomeProduct> get filteredItems => items.toList();
 
   @override
   void onInit() {
     super.onInit();
-    const title = 'mock_orchid_bouquet';
-    const price = '10,000';
-    _catalog = const [
-      HomeProduct(
-        id: 'f1',
-        title: title,
-        priceLabel: price,
-        imageAsset: 'assets/images/home/product_1.png',
-        isFavorite: true,
-      ),
-      HomeProduct(
-        id: 'f2',
-        title: title,
-        priceLabel: price,
-        imageAsset: 'assets/images/home/product_2.png',
-        isFavorite: true,
-      ),
-      HomeProduct(
-        id: 'f3',
-        title: title,
-        priceLabel: price,
-        imageAsset: 'assets/images/home/product_3.png',
-        isFavorite: true,
-      ),
-      HomeProduct(
-        id: 'f4',
-        title: title,
-        priceLabel: price,
-        imageAsset: 'assets/images/home/product_4.png',
-        isFavorite: true,
-      ),
-      HomeProduct(
-        id: 'f5',
-        title: title,
-        priceLabel: price,
-        imageAsset: 'assets/images/home/product_5.png',
-        isFavorite: true,
-      ),
-      HomeProduct(
-        id: 'f6',
-        title: title,
-        priceLabel: price,
-        imageAsset: 'assets/images/home/product_6.png',
-        isFavorite: true,
-      ),
-    ];
-    _productCategories = {
-      'f1': 'bouquets',
-      'f2': 'bouquets',
-      'f3': 'cake',
-      'f4': 'chocolate',
-      'f5': 'cherry',
-      'f6': 'lavender',
-      'l1': 'bouquets',
-      'p2': 'bouquets',
-      'a2': 'chocolate',
-    };
-    _loadItems();
+    loadFavorites();
   }
 
-  void _loadItems() {
-    if (Get.isRegistered<HomeController>()) {
-      final home = Get.find<HomeController>();
-      final catalog = [
-        ...home.latestGifts,
-        ...home.popularGifts,
-        ...home.allGifts,
-      ];
-      final byId = {for (final p in catalog) p.id: p};
-      final favs = <HomeProduct>[];
-      for (final id in home.favoriteIds) {
-        final p = byId[id];
-        if (p != null) favs.add(p);
-      }
-      if (favs.isNotEmpty) {
-        items.assignAll(favs);
-        return;
-      }
+  bool _requireAuth() {
+    if (!Get.find<AuthController>().isAuthenticated) {
+      Get.toNamed('/login');
+      return false;
     }
-    items.assignAll(_catalog);
+    return true;
   }
 
-  List<HomeProduct> get filteredItems {
-    final cat = selectedCategoryId.value;
-    if (cat == 'all') return items.toList();
-    return items
-        .where((p) => (_productCategories[p.id] ?? 'bouquets') == cat)
-        .toList();
+  Future<void> loadFavorites() async {
+    if (!_requireAuth()) return;
+    isLoading.value = true;
+    errorMessage.value = null;
+    try {
+      final cat = selectedCategoryId.value;
+      final data = await _api.getFavorites(
+        category: cat == 'all' ? null : cat,
+      );
+      final mapped = mapHomeProductList(data['items']);
+      items.assignAll(mapped);
+      if (Get.isRegistered<HomeController>()) {
+        final home = Get.find<HomeController>();
+        home.favoriteIds
+          ..clear()
+          ..addAll(mapped.map((p) => p.id));
+      }
+    } on ApiException catch (e) {
+      errorMessage.value = e.message;
+      items.clear();
+    } catch (_) {
+      errorMessage.value = 'auth_error_generic'.tr;
+      items.clear();
+    } finally {
+      isLoading.value = false;
+    }
   }
 
-  void selectCategory(String id) {
+  Future<void> selectCategory(String id) async {
     selectedCategoryId.value = id;
+    await loadFavorites();
   }
 
-  void removeFavorite(String productId) {
+  Future<void> removeFavorite(String productId) async {
+    if (!_requireAuth()) return;
+    final id = int.tryParse(productId);
+    if (id == null) return;
+    final removed = items.firstWhereOrNull((p) => p.id == productId);
     items.removeWhere((p) => p.id == productId);
     if (Get.isRegistered<HomeController>()) {
       Get.find<HomeController>().favoriteIds.remove(productId);
+    }
+    try {
+      await _api.removeFavorite(id);
+    } on ApiException catch (e) {
+      if (removed != null) items.add(removed);
+      if (Get.isRegistered<HomeController>()) {
+        Get.find<HomeController>().favoriteIds.add(productId);
+      }
+      Get.snackbar('common_app_name'.tr, e.message);
+    } catch (_) {
+      if (removed != null) items.add(removed);
+      if (Get.isRegistered<HomeController>()) {
+        Get.find<HomeController>().favoriteIds.add(productId);
+      }
     }
   }
 }

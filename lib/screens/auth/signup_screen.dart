@@ -45,6 +45,19 @@ class SignupScreen extends GetView<SignupController> {
           ),
           AppSpacing.verticalMd,
           AuthInputField(
+            hint: 'auth_password_hint'.tr,
+            iconAsset: 'assets/icons/auth/user.svg',
+            obscureText: true,
+            textInputAction: TextInputAction.next,
+            hasError: controller.errorMessage.value != null &&
+                controller.password.value.trim().length < 6,
+            onChanged: (v) {
+              controller.password.value = v;
+              controller.clearError();
+            },
+          ),
+          AppSpacing.verticalMd,
+          AuthInputField(
             hint: controller.governorate.value?.tr ?? 'auth_governorate_hint'.tr,
             iconAsset: 'assets/icons/auth/map_pin.svg',
             readOnly: true,

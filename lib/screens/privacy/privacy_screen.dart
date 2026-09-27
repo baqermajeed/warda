@@ -100,21 +100,22 @@ class PrivacyScreen extends GetView<PrivacyController> {
                         ),
                       ],
                     ),
-                    child: Column(
-                      children: [
-                        for (var i = 0;
-                            i < controller.sections.length;
-                            i++) ...[
-                          _PrivacyTile(section: controller.sections[i]),
-                          if (i < controller.sections.length - 1)
-                            Divider(
-                              height: 1,
-                              thickness: 1,
-                              color: Colors.black.withValues(alpha: 0.06),
-                            ),
+                    child: Obx(() {
+                      final sections = controller.sections;
+                      return Column(
+                        children: [
+                          for (var i = 0; i < sections.length; i++) ...[
+                            _PrivacyTile(section: sections[i]),
+                            if (i < sections.length - 1)
+                              Divider(
+                                height: 1,
+                                thickness: 1,
+                                color: Colors.black.withValues(alpha: 0.06),
+                              ),
+                          ],
                         ],
-                      ],
-                    ),
+                      );
+                    }),
                   ),
                   SizedBox(height: 22.h),
                   _ContactCard(onTap: controller.openSupport),
