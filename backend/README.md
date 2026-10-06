@@ -54,3 +54,22 @@ Refresh via `POST /api/v1/auth/refresh`.
 - IQD integer prices; free delivery at >= 100,000
 - Passwords hashed with Argon2
 - Redis used for rate-limit/cache when available; in-memory fallback otherwise
+
+## Admin dashboard API
+
+All routes under `/api/v1/admin` require an admin account (`users.is_admin`).
+
+```bash
+python scripts/create_admin.py 07700000000 "StrongPass" "Admin"
+```
+
+- `POST /api/v1/admin/login` — admin-only login (returns access + refresh tokens)
+- Catalog: `/admin/categories`, `/admin/banners`, `/admin/products`, `/admin/options/{gift-cards|wraps|addons}`
+- Sales: `/admin/stats`, `/admin/orders` (+ `PATCH /{id}/status`), `/admin/users`, `/admin/admins`
+- Content: `/admin/notifications`, `/admin/faq`, `/admin/privacy`, `/admin/support/tickets`, `/admin/settings`
+- Images: `POST /api/v1/uploads/image` (admin) → served from `/api/v1/media/{name}`
+
+Home ranking: «أحدث الهدايا» = newest first; «الأكثر شهرة» = sold units × 2 + favorites.
+`products.is_latest` / `is_popular` are manual pins from the dashboard.
+
+The web dashboard lives in `../dashboard` (see its README).

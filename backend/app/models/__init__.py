@@ -336,6 +336,26 @@ class SupportTicket(Base, TimestampMixin):
     status: Mapped[str] = mapped_column(String(24), default="open", nullable=False)
 
 
+class Notification(Base):
+    __tablename__ = "notifications"
+    __table_args__ = (
+        UniqueConstraint("user_id", "dedupe_key", name="uq_notification_user_key"),
+        Index("ix_notifications_user_created", "user_id", "created_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    type: Mapped[str] = mapped_column(String(32), default="general", nullable=False)
+    title_ar: Mapped[str] = mapped_column(String(200), nullable=False)
+    title_en: Mapped[str] = mapped_column(String(200), nullable=False)
+    body_ar: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    body_en: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    link: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    dedupe_key: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    read_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+
+
 class AppSetting(Base):
     __tablename__ = "app_settings"
 

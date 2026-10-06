@@ -5,8 +5,8 @@ import json
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from app.config import settings
 from app.models import AddonOption, Cart, CartItem, GiftCardOption, Product, WrapOption
+from app.services.app_settings import delivery_config
 from app.services.auth_tokens import parse_json_list
 
 
@@ -56,7 +56,8 @@ def calc_pricing(db: Session, cart: Cart) -> dict:
         )
         addons_price = sum(a.price for a in addons)
 
-    delivery = 0 if subtotal >= settings.free_delivery_threshold else settings.delivery_fee
+    delivery_fee, free_threshold = delivery_config(db)
+    delivery = 0 if subtotal >= free_threshold else delivery_fee
     if subtotal == 0:
         delivery = 0
     total = subtotal + wrap_price + addons_price + card_price + delivery

@@ -14,6 +14,7 @@ from app.config import settings
 from app.db import Base, engine
 from app.errors import AppError, app_error_handler, error_payload, http_exception_handler
 from app.routers import (
+    admin,
     auth,
     cart,
     catalog,
@@ -21,6 +22,7 @@ from app.routers import (
     favorites,
     health,
     media,
+    notifications,
     orders,
     reminders,
     special_gift,
@@ -90,3 +92,5 @@ app.include_router(special_gift.router, prefix="/api/v1")
 app.include_router(reminders.router, prefix="/api/v1")
 app.include_router(cms.router, prefix="/api/v1")
 app.include_router(media.router, prefix="/api/v1")
+app.include_router(notifications.router, prefix="/api/v1")
+app.include_router(admin.router, prefix="/api/v1")

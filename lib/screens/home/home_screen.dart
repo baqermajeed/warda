@@ -4,8 +4,10 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:get/get.dart';
 
 import '../../controllers/home_controller.dart';
+import '../../controllers/notifications_controller.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
+import '../../widgets/common/app_image.dart';
 import '../../widgets/common/app_spacing.dart';
 import '../../widgets/home/home_product_card.dart';
 
@@ -77,12 +79,27 @@ class _HomeBanner extends StatelessWidget {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          Image.asset(
-            'assets/images/home/banner.png',
-            fit: BoxFit.cover,
-            width: double.infinity,
-            height: 396.h,
-          ),
+          Obx(() {
+            final banners = controller.banners;
+            if (banners.isEmpty) {
+              return Image.asset(
+                'assets/images/home/banner.png',
+                fit: BoxFit.cover,
+                width: double.infinity,
+                height: 396.h,
+              );
+            }
+            return PageView.builder(
+              itemCount: banners.length,
+              onPageChanged: controller.setBannerIndex,
+              itemBuilder: (_, i) => AppImage(
+                source: banners[i].image,
+                fallbackAsset: 'assets/images/home/banner.png',
+                width: double.infinity,
+                height: 396.h,
+              ),
+            );
+          }),
           Positioned(
             left: 0,
             right: 0,
@@ -122,7 +139,7 @@ class _HomeBanner extends StatelessWidget {
               width: 83.w,
               height: 34.h,
               child: ElevatedButton(
-                onPressed: () {},
+                onPressed: controller.exploreBanner,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.onboardingCta,
                   foregroundColor: const Color(0xFFEFE5DA),
@@ -149,9 +166,11 @@ class _HomeBanner extends StatelessWidget {
             bottom: 18.h,
             child: Obx(() {
               final active = controller.bannerIndex.value;
+              final count =
+                  controller.banners.isEmpty ? 3 : controller.banners.length;
               return Row(
                 mainAxisAlignment: MainAxisAlignment.center,
-                children: List.generate(3, (i) {
+                children: List.generate(count, (i) {
                   final isActive = i == active;
                   return Container(
                     width: 42.w,
@@ -181,10 +200,13 @@ class _HomeHeader extends StatelessWidget {
     final controller = Get.find<HomeController>();
     return Row(
       children: [
-        _RoundIconButton(
-          asset: 'assets/icons/home/bell.svg',
-          showBadge: true,
-          onTap: () {},
+        Obx(
+          () => _RoundIconButton(
+            asset: 'assets/icons/home/bell.svg',
+            showBadge: Get.isRegistered<NotificationsController>() &&
+                Get.find<NotificationsController>().unreadCount.value > 0,
+            onTap: controller.openNotifications,
+          ),
         ),
         SizedBox(width: 14.w),
         _RoundIconButton(
@@ -192,47 +214,51 @@ class _HomeHeader extends StatelessWidget {
           onTap: () => Get.toNamed('/favorites'),
         ),
         const Spacer(),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Text(
-              'home_welcome'.tr,
-              style: TextStyle(
-                fontFamily: kFontFamily,
-                fontSize: 10.sp,
-                fontWeight: FontWeight.w700,
-                color: const Color(0xFF91716B),
-              ),
-            ),
-            SizedBox(height: 4.h),
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                SvgPicture.asset(
-                  'assets/icons/home/caret.svg',
-                  width: 16.w,
-                  height: 16.w,
+        GestureDetector(
+          onTap: controller.pickLocation,
+          behavior: HitTestBehavior.opaque,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                'home_welcome'.tr,
+                style: TextStyle(
+                  fontFamily: kFontFamily,
+                  fontSize: 10.sp,
+                  fontWeight: FontWeight.w700,
+                  color: const Color(0xFF91716B),
                 ),
-                SizedBox(width: 4.w),
-                Obx(
-                  () => Text(
-                    controller.locationLabel.value.tr,
-                    style: TextStyle(
-                      fontFamily: kFontFamily,
-                      fontSize: 12.sp,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.onboardingText,
+              ),
+              SizedBox(height: 4.h),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SvgPicture.asset(
+                    'assets/icons/home/caret.svg',
+                    width: 16.w,
+                    height: 16.w,
+                  ),
+                  SizedBox(width: 4.w),
+                  Obx(
+                    () => Text(
+                      controller.locationLabel.value.tr,
+                      style: TextStyle(
+                        fontFamily: kFontFamily,
+                        fontSize: 12.sp,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.onboardingText,
+                      ),
                     ),
                   ),
-                ),
-              ],
-            ),
-          ],
+                ],
+              ),
+            ],
+          ),
         ),
         SizedBox(width: 8.w),
         _RoundIconButton(
           asset: 'assets/icons/home/map_pin.svg',
-          onTap: () {},
+          onTap: controller.pickLocation,
         ),
       ],
     );
@@ -310,7 +336,12 @@ class _CategoriesSection extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: controller.categories
-              .map((c) => _CategoryItem(category: c))
+              .map(
+                (c) => _CategoryItem(
+                  category: c,
+                  onTap: () => controller.openCategory(c),
+                ),
+              )
               .toList(),
         ),
       ],
@@ -319,64 +350,77 @@ class _CategoriesSection extends StatelessWidget {
 }
 
 class _CategoryItem extends StatelessWidget {
-  const _CategoryItem({required this.category});
+  const _CategoryItem({required this.category, required this.onTap});
 
   final HomeCategory category;
+  final VoidCallback onTap;
+
+  ImageProvider _image(String source) {
+    if (source.startsWith('http://') || source.startsWith('https://')) {
+      return NetworkImage(source);
+    }
+    return AssetImage(source);
+  }
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 58.w,
-      child: Column(
-        children: [
-          Container(
-            width: 58.w,
-            height: 58.w,
-            decoration: BoxDecoration(
-              color: const Color(0xFFF5EAEA),
-              shape: BoxShape.circle,
-              image: category.imageAsset == null
-                  ? null
-                  : DecorationImage(
-                      image: AssetImage(category.imageAsset!),
-                      fit: BoxFit.cover,
-                    ),
-            ),
-            alignment: Alignment.center,
-            child: category.id == 'more'
-                ? Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: List.generate(
-                      3,
-                      (i) => Container(
-                        width: 5.5.w,
-                        height: 5.5.w,
-                        margin: EdgeInsets.symmetric(horizontal: 1.5.w),
-                        decoration: const BoxDecoration(
-                          color: AppColors.onboardingText,
-                          shape: BoxShape.circle,
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: SizedBox(
+        width: 58.w,
+        child: Column(
+          children: [
+            Container(
+              width: 58.w,
+              height: 58.w,
+              decoration: BoxDecoration(
+                color: const Color(0xFFF5EAEA),
+                shape: BoxShape.circle,
+                image: category.imageAsset == null
+                    ? null
+                    : DecorationImage(
+                        image: _image(category.imageAsset!),
+                        fit: BoxFit.cover,
+                        onError: (_, _) {},
+                      ),
+              ),
+              alignment: Alignment.center,
+              child: category.id == 'more'
+                  ? Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: List.generate(
+                        3,
+                        (i) => Container(
+                          width: 5.5.w,
+                          height: 5.5.w,
+                          margin: EdgeInsets.symmetric(horizontal: 1.5.w),
+                          decoration: const BoxDecoration(
+                            color: AppColors.onboardingText,
+                            shape: BoxShape.circle,
+                          ),
                         ),
                       ),
-                    ),
-                  )
-                : category.id == 'delivery'
-                    ? null
-                    : null,
-          ),
-          SizedBox(height: 6.h),
-          Text(
-            category.title.tr,
-            textAlign: TextAlign.center,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontFamily: kFontFamily,
-              fontSize: 12.sp,
-              fontWeight: FontWeight.w600,
-              color: AppColors.onboardingText,
+                    )
+                  : category.id == 'delivery'
+                      ? null
+                      : null,
             ),
-          ),
-        ],
+            SizedBox(height: 6.h),
+            Text(
+              category.title.tr,
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontFamily: kFontFamily,
+                fontSize: 12.sp,
+                fontWeight: FontWeight.w600,
+                color: AppColors.onboardingText,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

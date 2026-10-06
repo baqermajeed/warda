@@ -32,7 +32,8 @@ def seed() -> None:
     db = SessionLocal()
     try:
         if (db.scalar(select(func.count()).select_from(Product)) or 0) > 0:
-            print("Seed skipped: products already exist")
+            print("Base seed skipped: products already exist")
+            seed_extras(db)
             return
 
         cats = [
@@ -101,8 +102,9 @@ def seed() -> None:
                 care_steps_ar=care,
                 care_steps_en=care_en,
                 badges_json=badges,
-                is_latest=latest,
-                is_popular=popular,
+                # «أحدث/الأكثر شهرة» تُحسب تلقائيًا؛ هذه الحقول للتثبيت اليدوي من لوحة التحكم.
+                is_latest=False,
+                is_popular=False,
                 status="active",
                 cover_image=f"/api/v1/media/product_{i}.jpg",
             )
@@ -236,9 +238,93 @@ def seed() -> None:
         )
 
         db.commit()
+        seed_extras(db)
         print("Seed completed successfully")
     finally:
         db.close()
+
+
+EXTRA_PRODUCTS = [
+    # sku, title_ar, title_en, price, person, occasion, gift_type, budget, delivery
+    ("SKU-101", "علبة حلويات شرقية", "Oriental sweets box", 35000, "parents", "thanks", "sweets", "b1", "tomorrow"),
+    ("SKU-102", "عطر فاخر", "Luxury perfume", 150000, "spouse", "love", "perfume", "b4", "same_day"),
+    ("SKU-103", "بوكس هدايا مشكّل", "Mixed gift box", 65000, "friends", "birthday", "box", "b2", "pickup"),
+    ("SKU-104", "هدية مخصصة بالاسم", "Personalised name gift", 50000, "sibling", "graduation", "custom", "b2", "tomorrow"),
+    ("SKU-105", "باقة زهر الكرز", "Cherry blossom bouquet", 70000, "spouse", "wedding", "cherry", "b2", "same_day"),
+    ("SKU-106", "باقة لافندر صغيرة", "Small lavender bouquet", 25000, "friends", "thanks", "lavender", "b1", "pickup"),
+    ("SKU-107", "سوار فضة", "Silver bracelet", 180000, "spouse", "love", "jewelry", "b4", "tomorrow"),
+    ("SKU-108", "ديكور منزلي", "Home décor piece", 45000, "parents", "formal", "home", "b2", "tomorrow"),
+    ("SKU-109", "طقم هدايا رجالي", "Men's gift set", 90000, "parents", "fathers", "men", "b3", "same_day"),
+    ("SKU-110", "طقم هدايا نسائي", "Women's gift set", 90000, "parents", "mothers", "women", "b3", "same_day"),
+    ("SKU-111", "سلة عناية شخصية", "Self-care basket", 60000, "grandparents", "none", "care", "b2", "pickup"),
+    ("SKU-112", "لعبة أطفال", "Kids toy", 30000, "kids", "newborn", "toys", "b1", "same_day"),
+    ("SKU-113", "هدية لزميل العمل", "Gift for a colleague", 40000, "work", "work", "box", "b1", "tomorrow"),
+    ("SKU-114", "هدية لشخص مميز", "Gift for someone special", 55000, "other", "other_occ", "custom", "b2", "pickup"),
+]
+
+EXTRA_ADDONS = [
+    ("a5", "غصن لافندر", "Lavender sprig", 5000, "/api/v1/media/addon_5.jpg", "lavender"),
+]
+
+BANNER_LINKS = {
+    "Special gifts": "/special-gift",
+    "Fast delivery": "/search?delivery=same_day",
+}
+
+
+def seed_extras(db) -> None:
+    """Idempotent: adds rows that are missing, so it is safe on an existing database."""
+    existing_skus = set(db.scalars(select(Product.sku)).all())
+    category = db.scalars(select(Category).where(Category.slug == "flowers")).first()
+    added = 0
+    for i, (sku, ar, en, price, person, occasion, gtype, budget, delivery) in enumerate(
+        EXTRA_PRODUCTS, start=1
+    ):
+        if sku in existing_skus:
+            continue
+        image = f"/api/v1/media/product_{(i % 8) + 1}.jpg"
+        p = Product(
+            sku=sku,
+            title_ar=ar,
+            title_en=en,
+            description_ar="هدية مميزة مختارة بعناية لتناسب مناسبتك.",
+            description_en="A carefully selected gift for your occasion.",
+            price=price,
+            rating="4.6",
+            category_id=category.id if category else None,
+            person_tag=person,
+            occasion_tag=occasion,
+            gift_type_tag=gtype,
+            budget_tag=budget,
+            delivery_tag=delivery,
+            is_latest=False,
+            is_popular=False,
+            status="active",
+            cover_image=image,
+        )
+        db.add(p)
+        db.flush()
+        db.add(ProductImage(product_id=p.id, url=image, sort_order=0))
+        added += 1
+
+    existing_codes = set(db.scalars(select(AddonOption.code)).all())
+    for code, ar, en, price, image, cat in EXTRA_ADDONS:
+        if code not in existing_codes:
+            db.add(
+                AddonOption(
+                    code=code, title_ar=ar, title_en=en, price=price, image=image, category=cat
+                )
+            )
+
+    for banner in db.scalars(select(Banner)).all():
+        if not banner.link and banner.title_en in BANNER_LINKS:
+            banner.link = BANNER_LINKS[banner.title_en]
+
+    if db.get(AppSetting, "share.product_url") is None:
+        db.add(AppSetting(key="share.product_url", value="https://warda.app/p"))
+
+    db.commit()
+    print(f"Extras seeded: {added} products added")
 
 
 if __name__ == "__main__":

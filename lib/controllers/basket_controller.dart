@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import '../core/config/api_config.dart';
 import '../core/errors/api_exception.dart';
 import '../services/api_client.dart';
+import '../services/lookups_service.dart';
 import 'auth_controller.dart';
 
 /// عنصر داخل السلة.
@@ -82,7 +83,7 @@ class BasketController extends GetxController {
   int get totalPrice => _totalPrice.value;
   bool get hasFreeDelivery => _hasFreeDelivery.value;
 
-  final addonCategories = const [
+  static const _defaultAddonCategories = [
     ('all', 'common_all'),
     ('candles', 'شموع'),
     ('chocolate', 'opt_chocolate'),
@@ -91,13 +92,25 @@ class BasketController extends GetxController {
     ('lavender', 'fav_cat_lavender'),
   ];
 
+  /// تصنيفات الإضافات — تُستبدل بقائمة `/lookups` عند وصولها.
+  final addonCategories = <(String, String)>[..._defaultAddonCategories].obs;
+
   ApiClient get _api => Get.find<ApiClient>();
 
   @override
   void onInit() {
     super.onInit();
+    final lookups = LookupsService.to;
+    _applyLookupCategories(lookups.addonCategories.value);
+    ever<List<LookupOption>?>(lookups.addonCategories, _applyLookupCategories);
+    lookups.ensureLoaded();
     loadCart();
     loadCatalogOptions();
+  }
+
+  void _applyLookupCategories(List<LookupOption>? remote) {
+    if (remote == null || remote.isEmpty) return;
+    addonCategories.assignAll(remote.map((o) => (o.id, o.label)));
   }
 
   bool _requireAuth() {
@@ -198,8 +211,11 @@ class BasketController extends GetxController {
     _cardPrice.value = cardId.isEmpty
         ? 0
         : giftCards.firstWhereOrNull((c) => c.id == cardId)?.price ?? 0;
-    _hasFreeDelivery.value = _orderSubtotal.value >= 100000;
-    _deliveryPrice.value = _hasFreeDelivery.value ? 0 : 5000;
+    final lookups = LookupsService.to;
+    _hasFreeDelivery.value =
+        _orderSubtotal.value >= lookups.freeDeliveryThreshold.value;
+    _deliveryPrice.value =
+        _hasFreeDelivery.value ? 0 : lookups.deliveryFee.value;
     _totalPrice.value = _orderSubtotal.value +
         _wrapPrice.value +
         _addonsPrice.value +

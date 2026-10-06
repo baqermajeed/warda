@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 
 import '../core/errors/api_exception.dart';
 import '../services/api_client.dart';
+import '../services/lookups_service.dart';
 import 'auth_controller.dart';
 import 'basket_controller.dart';
 
@@ -21,26 +22,8 @@ class OrderController extends GetxController {
   late final TextEditingController governorateController;
   late final TextEditingController landmarkController;
 
-  static const governorates = [
-    'gov_baghdad',
-    'gov_basra',
-    'gov_nineveh',
-    'gov_erbil',
-    'gov_najaf',
-    'gov_karbala',
-    'gov_anbar',
-    'gov_diyala',
-    'gov_wasit',
-    'gov_maysan',
-    'gov_muthanna',
-    'gov_qadisiyyah',
-    'gov_dhi_qar',
-    'gov_saladin',
-    'gov_kirkuk',
-    'gov_duhok',
-    'gov_sulaymaniyah',
-    'gov_babylon',
-  ];
+  /// المحافظات من `/lookups` (مع قائمة افتراضية محلية).
+  static List<String> get governorates => LookupsService.to.governorates;
 
   ApiClient get _api => Get.find<ApiClient>();
 

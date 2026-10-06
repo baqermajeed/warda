@@ -3,9 +3,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/errors/api_exception.dart';
 import '../services/api_client.dart';
+import '../services/lookups_service.dart';
 import '../utils/product_mapper.dart';
 import 'auth_controller.dart';
 import 'home_controller.dart';
+import 'main_shell_controller.dart';
 
 /// خيار داخل فلتر موسّع.
 class CategoryOption {
@@ -51,7 +53,7 @@ class CategoriesController extends GetxController {
   final results = <HomeProduct>[].obs;
   final isLoading = false.obs;
 
-  final filters = const [
+  static const _defaultFilters = [
     CategoryFilter(
       id: 'person',
       title: 'filter_person',
@@ -119,12 +121,80 @@ class CategoriesController extends GetxController {
     ),
   ];
 
+  /// الفلاتر المعروضة — تُستبدل بقائمة `/lookups` عند وصولها.
+  final filters = <CategoryFilter>[..._defaultFilters].obs;
+
+  /// تصنيف من الصفحة الرئيسية (`category_id`) يُطبَّق على النتائج.
+  final selectedCategoryId = RxnInt();
+  final selectedCategoryTitle = RxnString();
+
   ApiClient get _api => Get.find<ApiClient>();
 
   @override
   void onInit() {
     super.onInit();
     _loadHistory();
+    final lookups = LookupsService.to;
+    _applyLookupFilters(lookups.filters.value);
+    ever<List<LookupFilter>?>(lookups.filters, _applyLookupFilters);
+    lookups.ensureLoaded();
+  }
+
+  void _applyLookupFilters(List<LookupFilter>? remote) {
+    if (remote == null || remote.isEmpty) return;
+    filters.assignAll(
+      remote.map(
+        (f) => CategoryFilter(
+          id: f.id,
+          title: f.title,
+          options: f.options
+              .map((o) => CategoryOption(id: o.id, label: o.label))
+              .toList(),
+        ),
+      ),
+    );
+  }
+
+  /// يفتح النتائج من تصنيف في الصفحة الرئيسية.
+  /// تصنيفات المجموعات (لشخص/لمناسبة/نوع الهدية) تفتح الفلتر المقابل في تبويب التصنيفات.
+  Future<void> openHomeCategory({
+    required String slug,
+    required int? id,
+    required String title,
+  }) async {
+    if (filters.any((f) => f.id == slug)) {
+      expandedFilterId.value = slug;
+      if (Get.isRegistered<MainShellController>()) {
+        Get.find<MainShellController>().changeTab(1);
+      }
+      return;
+    }
+    _resetFilters();
+    searchQuery.value = '';
+    selectedCategoryId.value = id;
+    selectedCategoryTitle.value = title;
+    await loadResults();
+    openResults();
+  }
+
+  /// يطبّق رابطًا بصيغة `/search?gift_type=flowers&delivery=same_day`.
+  Future<void> openSearchLink(Uri uri) async {
+    _resetFilters();
+    searchQuery.value = uri.queryParameters['q'] ?? '';
+    for (final filter in filters) {
+      final value = uri.queryParameters[filter.id];
+      if (value != null) selectedOptions[filter.id] = value;
+    }
+    final categoryId = int.tryParse(uri.queryParameters['category_id'] ?? '');
+    if (categoryId != null) selectedCategoryId.value = categoryId;
+    selectedOptions.refresh();
+    await loadResults();
+    openResults();
+  }
+
+  void clearCategory() {
+    selectedCategoryId.value = null;
+    selectedCategoryTitle.value = null;
   }
 
   List<({String filterId, String label})> get activeFilterChips {
@@ -137,6 +207,10 @@ class CategoriesController extends GetxController {
           label: '${filter.title.tr}: ${label.tr}',
         ));
       }
+    }
+    final categoryTitle = selectedCategoryTitle.value;
+    if (selectedCategoryId.value != null && categoryTitle != null) {
+      chips.add((filterId: _categoryChipId, label: categoryTitle.tr));
     }
     return chips;
   }
@@ -194,6 +268,7 @@ class CategoriesController extends GetxController {
         giftType: selectedOptions['gift_type'],
         budget: selectedOptions['budget'],
         delivery: selectedOptions['delivery'],
+        categoryId: selectedCategoryId.value,
         sort: _apiSort,
         pageSize: 40,
       );
@@ -215,6 +290,7 @@ class CategoriesController extends GetxController {
   Future<void> submitSearch([String? raw]) async {
     final q = (raw ?? searchQuery.value).trim();
     if (q.isEmpty) return;
+    clearCategory();
     searchQuery.value = q;
     searchHistory.remove(q);
     searchHistory.insert(0, q);
@@ -249,14 +325,29 @@ class CategoriesController extends GetxController {
     selectedOptions.refresh();
   }
 
+  static const _categoryChipId = 'category';
+
   void clearFilter(String filterId) {
+    if (filterId == _categoryChipId) clearCategory();
     selectedOptions.remove(filterId);
     selectedOptions.refresh();
+    _reloadIfOnResults();
   }
 
   void clearAllFilters() {
+    _resetFilters();
+    _reloadIfOnResults();
+  }
+
+  void _resetFilters() {
+    clearCategory();
     selectedOptions.clear();
     selectedOptions.refresh();
+  }
+
+  /// إزالة فلتر من شاشة النتائج تعيد جلب النتائج مباشرة.
+  void _reloadIfOnResults() {
+    if (Get.currentRoute == '/search-results') loadResults();
   }
 
   String? selectedLabel(CategoryFilter filter) {
@@ -316,6 +407,7 @@ class CategoriesController extends GetxController {
   bool isFavorite(String productId) => favoriteIds.contains(productId);
 
   Future<void> showResults() async {
+    clearCategory();
     await loadResults();
     openResults();
   }

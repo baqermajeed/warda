@@ -11,7 +11,8 @@ from sqlalchemy.orm import selectinload
 from app.deps import CurrentUser, DbSession
 from app.errors import AppError
 from app.models import CartItem, Order, OrderItem, Product
-from app.schemas import OkOut, OrderCreateIn, OrderOut, Page
+from app.schemas import OkOut, OrderCreateIn, OrderOut, OrderStatusIn, Page
+from app.services.notifications import notify_order_status
 from app.services.phone import require_iraqi_phone
 from app.services.pricing import calc_pricing, get_or_create_cart, set_addon_ids
 from app.services.auth_tokens import parse_json_list, parse_json_obj
@@ -156,6 +157,7 @@ def create_order(payload: OrderCreateIn, db: DbSession, user: CurrentUser) -> Or
     cart.gift_to = ""
     cart.gift_message = ""
     set_addon_ids(cart, [])
+    notify_order_status(db, order)
     db.commit()
 
     order = db.scalars(
@@ -233,3 +235,22 @@ def reorder(order_id: int, db: DbSession, user: CurrentUser) -> OkOut:
             )
     db.commit()
     return OkOut()
+
+
+@router.patch("/{order_id}/status", response_model=OrderOut)
+def update_status(
+    order_id: int, payload: OrderStatusIn, db: DbSession, user: CurrentUser
+) -> OrderOut:
+    if not user.is_admin:
+        raise AppError(403, "Admin only", code="FORBIDDEN")
+    order = db.scalars(
+        select(Order).where(Order.id == order_id).options(selectinload(Order.items))
+    ).first()
+    if order is None:
+        raise AppError(404, "Order not found", code="ORDER_NOT_FOUND")
+    if order.status != payload.status:
+        order.status = payload.status
+        notify_order_status(db, order)
+        db.commit()
+        db.refresh(order)
+    return serialize_order(order)

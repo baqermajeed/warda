@@ -522,6 +522,56 @@ class ApiClient {
     }
   }
 
+  Future<Map<String, dynamic>> getProductShare(int id) async {
+    try {
+      final response = await _dio.get(
+        '${ApiConfig.apiPrefix}/products/$id/share',
+      );
+      return Map<String, dynamic>.from(response.data as Map);
+    } on DioException catch (e) {
+      throw _toApiException(e);
+    }
+  }
+
+  Future<Map<String, dynamic>> getNotifications({int page = 1}) async {
+    try {
+      final response = await _dio.get(
+        '${ApiConfig.apiPrefix}/notifications',
+        queryParameters: {'page': page},
+      );
+      return Map<String, dynamic>.from(response.data as Map);
+    } on DioException catch (e) {
+      throw _toApiException(e);
+    }
+  }
+
+  Future<int> getUnreadNotificationsCount() async {
+    try {
+      final response = await _dio.get(
+        '${ApiConfig.apiPrefix}/notifications/unread-count',
+      );
+      return ((response.data as Map)['count'] as num?)?.toInt() ?? 0;
+    } on DioException catch (e) {
+      throw _toApiException(e);
+    }
+  }
+
+  Future<void> markNotificationRead(int id) async {
+    try {
+      await _dio.post('${ApiConfig.apiPrefix}/notifications/$id/read');
+    } on DioException catch (e) {
+      throw _toApiException(e);
+    }
+  }
+
+  Future<void> markAllNotificationsRead() async {
+    try {
+      await _dio.post('${ApiConfig.apiPrefix}/notifications/read-all');
+    } on DioException catch (e) {
+      throw _toApiException(e);
+    }
+  }
+
   ApiException _toApiException(DioException e) {
     if (e.type == DioExceptionType.connectionTimeout ||
         e.type == DioExceptionType.sendTimeout ||

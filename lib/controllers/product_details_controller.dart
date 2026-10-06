@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 
 import '../core/config/api_config.dart';
@@ -38,6 +39,9 @@ class ProductDetailsController extends GetxController {
   List<ProductBadge> badges = const [];
 
   ApiClient get _api => Get.find<ApiClient>();
+
+  /// أيقونات الشارات المتاحة (تُختار من لوحة التحكم).
+  static const _badgeIcons = {'truck', 'map', 'card', 'star', 'heart'};
 
   @override
   void onInit() {
@@ -93,9 +97,12 @@ class ProductDetailsController extends GetxController {
           .toList();
       badges = (data['badges'] as List? ?? []).whereType<Map>().map((e) {
         final label = '${e['label'] ?? ''}';
+        final icon = '${e['icon'] ?? ''}';
         return ProductBadge(
           label: label,
-          iconAsset: 'assets/icons/product/truck.svg',
+          iconAsset: _badgeIcons.contains(icon)
+              ? 'assets/icons/product/$icon.svg'
+              : 'assets/icons/product/truck.svg',
         );
       }).toList();
       similar = mapHomeProductList(data['similar']);
@@ -121,6 +128,18 @@ class ProductDetailsController extends GetxController {
     isFavorite.toggle();
     if (Get.isRegistered<HomeController>()) {
       await Get.find<HomeController>().toggleFavorite(productId);
+      return;
+    }
+    final id = int.tryParse(productId);
+    if (id == null) return;
+    try {
+      if (isFavorite.value) {
+        await _api.addFavorite(id);
+      } else {
+        await _api.removeFavorite(id);
+      }
+    } catch (_) {
+      isFavorite.toggle();
     }
   }
 
@@ -146,12 +165,26 @@ class ProductDetailsController extends GetxController {
     }
   }
 
-  void shareProduct() {
-    Get.snackbar(
-      'common_app_name'.tr,
-      'product_snack_share_soon'.tr,
-      snackPosition: SnackPosition.BOTTOM,
-    );
+  /// يجلب نص المشاركة من `GET /products/{id}/share` وينسخه للحافظة.
+  Future<void> shareProduct() async {
+    final id = int.tryParse(productId);
+    if (id == null) return;
+    try {
+      final data = await _api.getProductShare(id);
+      final isAr = (Get.locale?.languageCode ?? 'ar') == 'ar';
+      final message =
+          (isAr ? data['message_ar'] : data['message_en']) ?? data['url'] ?? '';
+      await Clipboard.setData(ClipboardData(text: '$message'));
+      Get.snackbar(
+        'common_app_name'.tr,
+        'product_share_copied'.tr,
+        snackPosition: SnackPosition.BOTTOM,
+      );
+    } on ApiException catch (e) {
+      Get.snackbar('common_app_name'.tr, e.message);
+    } catch (_) {
+      Get.snackbar('common_app_name'.tr, 'auth_error_generic'.tr);
+    }
   }
 
   void openSimilar(HomeProduct product) {

@@ -15,7 +15,10 @@ from app.schemas import (
     ProductCardOut,
     ProductDetailOut,
 )
+from app.services.app_settings import delivery_config, get_setting
+from app.services.ranking import latest_products, popular_products, with_popularity
 from app.services.serializers import product_card, product_detail
+from app.services.taxonomy import BUDGET_RANGES, gift_type_tags, lookups_payload, occasion_tags
 
 router = APIRouter(tags=["catalog"])
 
@@ -43,18 +46,8 @@ def home(db: DbSession, user: OptionalUser) -> HomeOut:
         .order_by(Category.sort_order, Category.id)
         .limit(12)
     ).all()
-    latest = db.scalars(
-        select(Product)
-        .where(Product.status == "active", Product.is_latest.is_(True))
-        .order_by(Product.id.desc())
-        .limit(12)
-    ).all()
-    popular = db.scalars(
-        select(Product)
-        .where(Product.status == "active", Product.is_popular.is_(True))
-        .order_by(Product.id.desc())
-        .limit(12)
-    ).all()
+    latest = latest_products(db)
+    popular = popular_products(db)
     all_gifts = db.scalars(
         select(Product).where(Product.status == "active").order_by(Product.id.desc()).limit(20)
     ).all()
@@ -118,11 +111,14 @@ def list_products(
     if person:
         stmt = stmt.where(Product.person_tag == person)
     if occasion:
-        stmt = stmt.where(Product.occasion_tag == occasion)
+        stmt = stmt.where(Product.occasion_tag.in_(occasion_tags(occasion)))
     if gift_type:
-        stmt = stmt.where(Product.gift_type_tag == gift_type)
-    if budget:
-        stmt = stmt.where(Product.budget_tag == budget)
+        stmt = stmt.where(Product.gift_type_tag.in_(gift_type_tags(gift_type)))
+    if budget in BUDGET_RANGES:
+        low, high = BUDGET_RANGES[budget]
+        stmt = stmt.where(Product.price >= low)
+        if high is not None:
+            stmt = stmt.where(Product.price < high)
     if delivery:
         stmt = stmt.where(Product.delivery_tag == delivery)
     if category_id:
@@ -136,9 +132,10 @@ def list_products(
     elif sort == "priceDesc":
         stmt = stmt.order_by(Product.price.desc())
     elif sort == "popular":
-        stmt = stmt.order_by(Product.is_popular.desc(), Product.id.desc())
+        stmt, _sold, _favs, score = with_popularity(stmt)
+        stmt = stmt.order_by(Product.is_popular.desc(), score.desc(), Product.id.desc())
     else:
-        stmt = stmt.order_by(Product.id.desc())
+        stmt = stmt.order_by(Product.created_at.desc(), Product.id.desc())
 
     rows = db.scalars(stmt.offset((page - 1) * page_size).limit(page_size)).all()
     return Page(
@@ -178,65 +175,28 @@ def get_product(product_id: int, db: DbSession, user: OptionalUser) -> ProductDe
     return product_detail(product, similar=list(similar), favorite_ids=favs)
 
 
+@router.get("/products/{product_id}/share")
+def share_product(product_id: int, db: DbSession) -> dict:
+    product = db.get(Product, product_id)
+    if product is None or product.status != "active":
+        raise AppError(404, "Product not found", code="PRODUCT_NOT_FOUND")
+    url = f"{get_setting(db, 'share.product_url').rstrip('/')}/{product.id}"
+    return {
+        "url": url,
+        "message_ar": f"شاهد «{product.title_ar}» على تطبيق وردة\n{url}",
+        "message_en": f"Check out “{product.title_en}” on Warda\n{url}",
+    }
+
+
 @router.get("/lookups")
-def lookups() -> dict:
-    cached = cache_json_get("lookups:v1")
+def lookups(db: DbSession) -> dict:
+    cached = cache_json_get("lookups:v2")
     if cached:
         return cached
-    data = {
-        "governorates": [
-            "gov_baghdad",
-            "gov_basra",
-            "gov_nineveh",
-            "gov_erbil",
-            "gov_najaf",
-            "gov_karbala",
-            "gov_anbar",
-            "gov_diyala",
-            "gov_wasit",
-            "gov_maysan",
-            "gov_muthanna",
-            "gov_qadisiyyah",
-            "gov_dhi_qar",
-            "gov_saladin",
-            "gov_kirkuk",
-            "gov_duhok",
-            "gov_sulaymaniyah",
-            "gov_babylon",
-        ],
-        "person": ["parents", "sibling", "spouse", "friends", "work", "kids", "grandparents", "other"],
-        "occasion": [
-            "birthday",
-            "wedding",
-            "graduation",
-            "thanks",
-            "newborn",
-            "fathers",
-            "mothers",
-            "love",
-            "formal",
-            "none",
-        ],
-        "gift_type": [
-            "flowers",
-            "cake",
-            "chocolate",
-            "plants",
-            "jewelry",
-            "candles",
-            "home",
-            "men",
-            "women",
-            "care",
-            "toys",
-        ],
-        "budget": ["b1", "b2", "b3", "b4"],
-        "delivery": ["same_day", "tomorrow", "pickup"],
-        "sort": ["newest", "priceAsc", "priceDesc", "popular"],
-        "payment_methods": ["cod", "card"],
-        "currency": "IQD",
-        "free_delivery_threshold": 100000,
-        "delivery_fee": 5000,
-    }
-    cache_json_set("lookups:v1", data, 300)
+    delivery_fee, free_threshold = delivery_config(db)
+    data = lookups_payload(
+        delivery_fee=delivery_fee,
+        free_delivery_threshold=free_threshold,
+    )
+    cache_json_set("lookups:v2", data, 300)
     return data

@@ -7,6 +7,7 @@ import '../../controllers/basket_controller.dart';
 import '../../controllers/categories_controller.dart';
 import '../../controllers/home_controller.dart';
 import '../../controllers/main_shell_controller.dart';
+import '../../controllers/notifications_controller.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../screens/acount-setting/account_screen.dart';
@@ -272,6 +273,12 @@ class MainShellBinding extends Bindings {
     }
     if (!Get.isRegistered<AccountController>()) {
       Get.lazyPut<AccountController>(() => AccountController(), fenix: true);
+    }
+    if (!Get.isRegistered<NotificationsController>()) {
+      Get.lazyPut<NotificationsController>(
+        () => NotificationsController(),
+        fenix: true,
+      );
     }
   }
 }

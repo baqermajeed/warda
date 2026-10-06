@@ -4,8 +4,9 @@ from fastapi import APIRouter
 from sqlalchemy import select
 
 from app.deps import CurrentUser, DbSession, OptionalUser
-from app.models import AppSetting, FaqCategory, PrivacySection, SupportTicket
+from app.models import FaqCategory, PrivacySection, SupportTicket
 from app.schemas import OkOut, SupportTicketIn
+from app.services.app_settings import get_setting
 from sqlalchemy.orm import selectinload
 
 router = APIRouter(tags=["cms"])
@@ -63,18 +64,10 @@ def privacy(db: DbSession) -> dict:
 
 @router.get("/support/contact")
 def support_contact(db: DbSession) -> dict:
-    defaults = {
-        "phone": "+9647700000000",
-        "whatsapp": "+9647700000000",
-        "email": "support@warda.app",
-        "hours_ar": "يومياً 9 ص – 9 م",
-        "hours_en": "Daily 9 AM – 9 PM",
+    return {
+        key: get_setting(db, f"support.{key}")
+        for key in ("phone", "whatsapp", "email", "hours_ar", "hours_en")
     }
-    for key in list(defaults):
-        row = db.get(AppSetting, f"support.{key}")
-        if row:
-            defaults[key] = row.value
-    return defaults
 
 
 @router.post("/support/tickets", response_model=OkOut)
@@ -97,15 +90,8 @@ def create_ticket(
 
 @router.get("/app/share")
 def share(db: DbSession) -> dict:
-    url = db.get(AppSetting, "share.url")
-    message_ar = db.get(AppSetting, "share.message_ar")
-    message_en = db.get(AppSetting, "share.message_en")
     return {
-        "url": url.value if url else "https://warda.app/download",
-        "message_ar": message_ar.value
-        if message_ar
-        else "جرب تطبيق وردة للهدايا والزهور!",
-        "message_en": message_en.value
-        if message_en
-        else "Try Warda — gifts and flowers delivered!",
+        "url": get_setting(db, "share.url"),
+        "message_ar": get_setting(db, "share.message_ar"),
+        "message_en": get_setting(db, "share.message_en"),
     }

@@ -51,18 +51,24 @@ class OrdersScreen extends GetView<OrdersController> {
                 if (controller.isLoading.value && orders.isEmpty) {
                   return const Center(child: CircularProgressIndicator());
                 }
-                return ListView.separated(
-                  padding: EdgeInsets.fromLTRB(18.w, 0, 18.w, 24.h),
-                  itemCount: orders.length,
-                  separatorBuilder: (_, _) => SizedBox(height: 16.h),
-                  itemBuilder: (_, i) {
-                    final order = orders[i];
-                    return _OrderCard(
-                      order: order,
-                      onDetails: () => controller.openDetails(order),
-                      onReorder: () => controller.reorder(order),
-                    );
+                return NotificationListener<ScrollNotification>(
+                  onNotification: (n) {
+                    if (n.metrics.extentAfter < 300) controller.loadMore();
+                    return false;
                   },
+                  child: ListView.separated(
+                    padding: EdgeInsets.fromLTRB(18.w, 0, 18.w, 24.h),
+                    itemCount: orders.length,
+                    separatorBuilder: (_, _) => SizedBox(height: 16.h),
+                    itemBuilder: (_, i) {
+                      final order = orders[i];
+                      return _OrderCard(
+                        order: order,
+                        onDetails: () => controller.openDetails(order),
+                        onReorder: () => controller.reorder(order),
+                      );
+                    },
+                  ),
                 );
               }),
             ),

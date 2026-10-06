@@ -2,6 +2,7 @@ import 'package:get/get.dart';
 
 import '../core/errors/api_exception.dart';
 import '../services/api_client.dart';
+import '../services/lookups_service.dart';
 import '../utils/product_mapper.dart';
 import 'auth_controller.dart';
 import 'home_controller.dart';
@@ -19,9 +20,14 @@ class FavoritesController extends GetxController {
   final selectedCategoryId = 'all'.obs;
   final items = <HomeProduct>[].obs;
   final isLoading = false.obs;
+  final isLoadingMore = false.obs;
   final RxnString errorMessage = RxnString();
+  int _page = 1;
+  int _total = 0;
 
-  final categories = const [
+  bool get hasMore => items.length < _total;
+
+  static const _defaultCategories = [
     FavoriteCategory(id: 'all', label: 'common_all'),
     FavoriteCategory(id: 'bouquets', label: 'fav_cat_bouquets'),
     FavoriteCategory(id: 'cake', label: 'fav_cat_cake'),
@@ -30,6 +36,9 @@ class FavoritesController extends GetxController {
     FavoriteCategory(id: 'lavender', label: 'fav_cat_lavender'),
   ];
 
+  /// تصنيفات الفلتر — تُستبدل بقائمة `/lookups` عند وصولها.
+  final categories = <FavoriteCategory>[..._defaultCategories].obs;
+
   ApiClient get _api => Get.find<ApiClient>();
 
   List<HomeProduct> get filteredItems => items.toList();
@@ -37,7 +46,21 @@ class FavoritesController extends GetxController {
   @override
   void onInit() {
     super.onInit();
+    final lookups = LookupsService.to;
+    _applyLookupCategories(lookups.favoriteCategories.value);
+    ever<List<LookupOption>?>(
+      lookups.favoriteCategories,
+      _applyLookupCategories,
+    );
+    lookups.ensureLoaded();
     loadFavorites();
+  }
+
+  void _applyLookupCategories(List<LookupOption>? remote) {
+    if (remote == null || remote.isEmpty) return;
+    categories.assignAll(
+      remote.map((o) => FavoriteCategory(id: o.id, label: o.label)),
+    );
   }
 
   bool _requireAuth() {
@@ -59,7 +82,10 @@ class FavoritesController extends GetxController {
       );
       final mapped = mapHomeProductList(data['items']);
       items.assignAll(mapped);
-      if (Get.isRegistered<HomeController>()) {
+      _page = 1;
+      _total = (data['total'] as num?)?.toInt() ?? mapped.length;
+      // المزامنة مع الرئيسية فقط عند عرض كل المفضلة كاملة.
+      if (cat == 'all' && !hasMore && Get.isRegistered<HomeController>()) {
         final home = Get.find<HomeController>();
         home.favoriteIds
           ..clear()
@@ -76,6 +102,29 @@ class FavoritesController extends GetxController {
     }
   }
 
+  /// تحميل الصفحة التالية عند الوصول لنهاية القائمة.
+  Future<void> loadMore() async {
+    if (!hasMore || isLoading.value || isLoadingMore.value) return;
+    isLoadingMore.value = true;
+    try {
+      final cat = selectedCategoryId.value;
+      final data = await _api.getFavorites(
+        category: cat == 'all' ? null : cat,
+        page: _page + 1,
+      );
+      final mapped = mapHomeProductList(data['items']);
+      final known = items.map((p) => p.id).toSet();
+      items.addAll(mapped.where((p) => !known.contains(p.id)));
+      _page += 1;
+      _total = (data['total'] as num?)?.toInt() ?? _total;
+      if (mapped.isEmpty) _total = items.length;
+    } catch (_) {
+      // يمكن إعادة المحاولة بالتمرير مجددًا
+    } finally {
+      isLoadingMore.value = false;
+    }
+  }
+
   Future<void> selectCategory(String id) async {
     selectedCategoryId.value = id;
     await loadFavorites();
@@ -87,19 +136,26 @@ class FavoritesController extends GetxController {
     if (id == null) return;
     final removed = items.firstWhereOrNull((p) => p.id == productId);
     items.removeWhere((p) => p.id == productId);
+    if (removed != null) _total -= 1;
     if (Get.isRegistered<HomeController>()) {
       Get.find<HomeController>().favoriteIds.remove(productId);
     }
     try {
       await _api.removeFavorite(id);
     } on ApiException catch (e) {
-      if (removed != null) items.add(removed);
+      if (removed != null) {
+        items.add(removed);
+        _total += 1;
+      }
       if (Get.isRegistered<HomeController>()) {
         Get.find<HomeController>().favoriteIds.add(productId);
       }
       Get.snackbar('common_app_name'.tr, e.message);
     } catch (_) {
-      if (removed != null) items.add(removed);
+      if (removed != null) {
+        items.add(removed);
+        _total += 1;
+      }
       if (Get.isRegistered<HomeController>()) {
         Get.find<HomeController>().favoriteIds.add(productId);
       }
