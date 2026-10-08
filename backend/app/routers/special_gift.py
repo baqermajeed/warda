@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 from fastapi import APIRouter
-from sqlalchemy import and_, select
 
-from app.deps import DbSession, OptionalUser
+from app.deps import OptionalUser
 from app.models import Favorite, Product
 from app.schemas import Page, SpecialGiftRecommendIn
 from app.services.serializers import product_card
@@ -54,9 +53,8 @@ def options() -> dict:
 
 
 @router.post("/recommend", response_model=Page)
-def recommend(
+async def recommend(
     payload: SpecialGiftRecommendIn,
-    db: DbSession,
     user: OptionalUser,
     page: int = 1,
     page_size: int = 20,
@@ -75,27 +73,17 @@ def recommend(
     if payload.budget_to is not None:
         filters.append(Product.price <= payload.budget_to)
 
-    stmt = select(Product).where(and_(*filters)).order_by(Product.is_popular.desc(), Product.id.desc())
-    rows = list(db.scalars(stmt).all())
-    # Soft fallback if filters too strict
+    rows = await Product.find(*filters).sort("-is_popular", "-id").to_list()
     if not rows:
         soft = [Product.status == "active"]
         if payload.type_id:
             soft.append(Product.gift_type_tag == payload.type_id)
-        rows = list(
-            db.scalars(
-                select(Product)
-                .where(and_(*soft))
-                .order_by(Product.is_popular.desc(), Product.id.desc())
-                .limit(40)
-            ).all()
-        )
+        rows = await Product.find(*soft).sort("-is_popular", "-id").limit(40).to_list()
 
     favs: set[int] = set()
     if user:
-        favs = set(
-            db.scalars(select(Favorite.product_id).where(Favorite.user_id == user.id)).all()
-        )
+        fav_rows = await Favorite.find(Favorite.user_id == user.id).to_list()
+        favs = {r.product_id for r in fav_rows}
     total = len(rows)
     chunk = rows[(page - 1) * page_size : (page - 1) * page_size + page_size]
     return Page(

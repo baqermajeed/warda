@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -21,41 +23,51 @@ class HomeScreen extends GetView<HomeController> {
         if (controller.isLoading.value) {
           return const Center(child: CircularProgressIndicator());
         }
-        return CustomScrollView(
-          slivers: [
-            SliverToBoxAdapter(child: _HomeBanner(controller: controller)),
-            SliverToBoxAdapter(
-              child: Transform.translate(
-                offset: Offset(0, -56.h),
-                child: Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 20.w),
-                  child: Column(
-                    children: [
-                      SizedBox(height: 56.h),
-                      _CategoriesSection(controller: controller),
-                      SizedBox(height: 26.h),
-                      _ProductSection(
-                        title: 'home_latest'.tr,
-                        products: controller.latestGifts.toList(),
-                        horizontal: true,
+        return Stack(
+          children: [
+            CustomScrollView(
+              slivers: [
+                SliverToBoxAdapter(child: _HomeBanner(controller: controller)),
+                SliverToBoxAdapter(
+                  child: Transform.translate(
+                    offset: Offset(0, -56.h),
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 20.w),
+                      child: Column(
+                        children: [
+                          SizedBox(height: 56.h),
+                          _CategoriesSection(controller: controller),
+                          SizedBox(height: 26.h),
+                          _ProductSection(
+                            title: 'home_latest'.tr,
+                            products: controller.latestGifts.toList(),
+                            horizontal: true,
+                          ),
+                          _SectionDivider(),
+                          _ProductSection(
+                            title: 'home_popular'.tr,
+                            products: controller.popularGifts.toList(),
+                            horizontal: true,
+                          ),
+                          _SectionDivider(),
+                          _ProductSection(
+                            title: 'home_all_gifts'.tr,
+                            products: controller.allGifts.toList(),
+                            horizontal: false,
+                          ),
+                          SizedBox(height: 120.h),
+                        ],
                       ),
-                      _SectionDivider(),
-                      _ProductSection(
-                        title: 'home_popular'.tr,
-                        products: controller.popularGifts.toList(),
-                        horizontal: true,
-                      ),
-                      _SectionDivider(),
-                      _ProductSection(
-                        title: 'home_all_gifts'.tr,
-                        products: controller.allGifts.toList(),
-                        horizontal: false,
-                      ),
-                      SizedBox(height: 120.h),
-                    ],
+                    ),
                   ),
                 ),
-              ),
+              ],
+            ),
+            const Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: _StickyHomeHeader(),
             ),
           ],
         );
@@ -100,18 +112,6 @@ class _HomeBanner extends StatelessWidget {
                     ],
                   ),
                 ),
-              ),
-            ),
-          ),
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: SafeArea(
-              bottom: false,
-              child: Padding(
-                padding: EdgeInsets.fromLTRB(20.w, 8.h, 20.w, 0),
-                child: const _HomeHeader(),
               ),
             ),
           ),
@@ -173,68 +173,137 @@ class _HomeBanner extends StatelessWidget {
   }
 }
 
+class _StickyHomeHeader extends StatelessWidget {
+  const _StickyHomeHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
+        child: ColoredBox(
+          color: Colors.transparent,
+          child: SafeArea(
+            bottom: false,
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(20.w, 0, 20.w, 8.h),
+              child: Transform.translate(
+                offset: Offset(0, -2.h),
+                child: const _HomeHeader(),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _HomeHeader extends StatelessWidget {
   const _HomeHeader();
 
   @override
   Widget build(BuildContext context) {
-    final controller = Get.find<HomeController>();
-    return Row(
-      children: [
-        _RoundIconButton(
-          asset: 'assets/icons/home/bell.svg',
-          showBadge: true,
-          onTap: () {},
-        ),
-        SizedBox(width: 14.w),
-        _RoundIconButton(
-          asset: 'assets/icons/home/heart.svg',
-          onTap: () => Get.toNamed('/favorites'),
-        ),
-        const Spacer(),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Text(
-              'home_welcome'.tr,
-              style: TextStyle(
-                fontFamily: kFontFamily,
-                fontSize: 10.sp,
-                fontWeight: FontWeight.w700,
-                color: const Color(0xFF91716B),
+    return Directionality(
+      textDirection: TextDirection.ltr,
+      child: Row(
+        children: [
+          _RoundIconButton(
+            asset: 'assets/icons/home/heart.svg',
+            onTap: () => Get.toNamed('/favorites'),
+          ),
+          SizedBox(width: 10.w),
+          const _DeliveryLocationChip(),
+          const Spacer(),
+          SizedBox(
+            width: 150.w,
+            height: 34.h,
+            child: OverflowBox(
+              maxWidth: 150.w,
+              maxHeight: 34.h,
+              alignment: Alignment.centerRight,
+              child: Image.asset(
+                'assets/images/home/logo.png',
+                width: 150.w,
+                height: 34.h,
+                fit: BoxFit.fill,
               ),
             ),
-            SizedBox(height: 4.h),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// شريحة موقع التوصيل — حسب Figma.
+class _DeliveryLocationChip extends StatelessWidget {
+  const _DeliveryLocationChip();
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = Get.find<HomeController>();
+    return GestureDetector(
+      onTap: () {},
+      child: Container(
+        width: 86.w,
+        height: 34.h,
+        padding: EdgeInsets.symmetric(horizontal: 6.w),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.14),
+          borderRadius: BorderRadius.circular(19.r),
+        ),
+        alignment: Alignment.center,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Text(
+              'التوصيل الى',
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontFamily: kFontFamily,
+                fontSize: 9.sp,
+                fontWeight: FontWeight.w500,
+                color: Colors.white,
+                height: 1.1,
+              ),
+            ),
+            SizedBox(height: 3.h),
             Row(
+              mainAxisAlignment: MainAxisAlignment.center,
               mainAxisSize: MainAxisSize.min,
               children: [
-                SvgPicture.asset(
-                  'assets/icons/home/caret.svg',
-                  width: 16.w,
-                  height: 16.w,
-                ),
-                SizedBox(width: 4.w),
-                Obx(
-                  () => Text(
-                    controller.locationLabel.value.tr,
-                    style: TextStyle(
-                      fontFamily: kFontFamily,
-                      fontSize: 12.sp,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.onboardingText,
+                Flexible(
+                  child: Obx(
+                    () => Text(
+                      controller.locationLabel.value.tr,
+                      textAlign: TextAlign.center,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontFamily: kFontFamily,
+                        fontSize: 10.sp,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                        height: 1.1,
+                      ),
                     ),
                   ),
+                ),
+                SizedBox(width: 3.w),
+                SvgPicture.asset(
+                  'assets/icons/home/delivery_caret.svg',
+                  width: 8.w,
+                  height: 5.h,
                 ),
               ],
             ),
           ],
         ),
-        SizedBox(width: 8.w),
-        _RoundIconButton(
-          asset: 'assets/icons/home/map_pin.svg',
-          onTap: () {},
-        ),
-      ],
+      ),
     );
   }
 }
@@ -261,7 +330,7 @@ class _RoundIconButton extends StatelessWidget {
             width: 34.5.w,
             height: 34.5.w,
             decoration: BoxDecoration(
-              color: AppColors.onboardingText.withValues(alpha: 0.16),
+              color: Colors.white.withValues(alpha: 0.14),
               shape: BoxShape.circle,
             ),
             alignment: Alignment.center,

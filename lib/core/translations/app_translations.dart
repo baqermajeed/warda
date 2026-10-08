@@ -103,6 +103,7 @@ const Map<String, String> _ar = {
   'home_cat_delivery': 'التوصيل',
   'home_cat_more': 'المزيد',
   'home_location_sample': 'حلة , بابل',
+  'home_deliver_to': 'التوصيل الى',
 
   // categories / search / filter
   'categories_title': 'التصنيفات و البحث',
@@ -619,6 +620,7 @@ const Map<String, String> _en = {
   'home_cat_delivery': 'Delivery',
   'home_cat_more': 'More',
   'home_location_sample': 'Hilla, Babylon',
+  'home_deliver_to': 'Delivery to',
 
   // categories / search / filter
   'categories_title': 'Categories & search',

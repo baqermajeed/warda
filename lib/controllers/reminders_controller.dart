@@ -76,13 +76,7 @@ class RemindersController extends GetxController {
     _load();
   }
 
-  bool _requireAuth() {
-    if (!Get.find<AuthController>().isAuthenticated) {
-      Get.toNamed('/login');
-      return false;
-    }
-    return true;
-  }
+  bool _requireAuth() => Get.find<AuthController>().requireAuth();
 
   List<OccasionReminder> get upcoming {
     final sorted = List<OccasionReminder>.from(reminders);

@@ -131,10 +131,7 @@ class HomeController extends GetxController {
   Future<void> toggleFavorite(String productId) async {
     final id = int.tryParse(productId);
     if (id == null) return;
-    if (!Get.find<AuthController>().isAuthenticated) {
-      Get.toNamed('/login');
-      return;
-    }
+    if (!Get.find<AuthController>().requireAuth()) return;
     final wasFav = favoriteIds.contains(productId);
     if (wasFav) {
       favoriteIds.remove(productId);

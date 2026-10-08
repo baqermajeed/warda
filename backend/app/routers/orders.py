@@ -2,18 +2,16 @@ from __future__ import annotations
 
 import json
 import secrets
-from datetime import datetime
 
 from fastapi import APIRouter
-from sqlalchemy import select
-from sqlalchemy.orm import selectinload
 
-from app.deps import CurrentUser, DbSession
+from app.db import next_seq
+from app.deps import CurrentUser
 from app.errors import AppError
-from app.models import CartItem, Order, OrderItem, Product
+from app.models import CartItemEmbed, Order, OrderItemEmbed, Product
 from app.schemas import OkOut, OrderCreateIn, OrderOut, Page
 from app.services.phone import require_iraqi_phone
-from app.services.pricing import calc_pricing, get_or_create_cart, set_addon_ids
+from app.services.pricing import calc_pricing, get_or_create_cart, set_addon_ids, touch_cart
 from app.services.auth_tokens import parse_json_list, parse_json_obj
 
 router = APIRouter(prefix="/orders", tags=["orders"])
@@ -62,8 +60,8 @@ def serialize_order(order: Order) -> OrderOut:
 
 
 @router.post("", response_model=OrderOut)
-def create_order(payload: OrderCreateIn, db: DbSession, user: CurrentUser) -> OrderOut:
-    cart = get_or_create_cart(db, user.id)
+async def create_order(payload: OrderCreateIn, user: CurrentUser) -> OrderOut:
+    cart = await get_or_create_cart(user.id)
     if not cart.items:
         raise AppError(400, "Cart is empty", code="CART_EMPTY")
 
@@ -71,7 +69,26 @@ def create_order(payload: OrderCreateIn, db: DbSession, user: CurrentUser) -> Or
     if not payload.unknown_address and not payload.governorate:
         raise AppError(400, "Governorate required", code="GOVERNORATE_REQUIRED")
 
-    pricing = calc_pricing(db, cart)
+    pricing = await calc_pricing(cart)
+    gift_card = pricing.get("gift_card")
+    wrap = pricing.get("wrap")
+
+    order_items: list[OrderItemEmbed] = []
+    for item in cart.items:
+        p = await Product.find_one(Product.id == item.product_id)
+        order_items.append(
+            OrderItemEmbed(
+                id=await next_seq("order_items"),
+                product_id=item.product_id,
+                title_ar=p.title_ar if p else "Product",
+                title_en=p.title_en if p else "Product",
+                image=p.cover_image if p else None,
+                unit_price=item.unit_price,
+                qty=item.qty,
+                line_total=item.unit_price * item.qty,
+            )
+        )
+
     order = Order(
         code=_order_code(),
         user_id=user.id,
@@ -93,25 +110,25 @@ def create_order(payload: OrderCreateIn, db: DbSession, user: CurrentUser) -> Or
         gift_message=cart.gift_message,
         gift_card_snapshot=json.dumps(
             {
-                "id": cart.gift_card.id,
-                "title_ar": cart.gift_card.title_ar,
-                "title_en": cart.gift_card.title_en,
-                "price": cart.gift_card.price,
-                "image": cart.gift_card.image,
+                "id": gift_card.id,
+                "title_ar": gift_card.title_ar,
+                "title_en": gift_card.title_en,
+                "price": gift_card.price,
+                "image": gift_card.image,
             }
-            if cart.gift_card
+            if gift_card
             else {},
             ensure_ascii=False,
         ),
         wrap_snapshot=json.dumps(
             {
-                "id": cart.wrap.id,
-                "title_ar": cart.wrap.title_ar,
-                "title_en": cart.wrap.title_en,
-                "price": cart.wrap.price,
-                "image": cart.wrap.image,
+                "id": wrap.id,
+                "title_ar": wrap.title_ar,
+                "title_en": wrap.title_en,
+                "price": wrap.price,
+                "image": wrap.image,
             }
-            if cart.wrap
+            if wrap
             else {},
             ensure_ascii=False,
         ),
@@ -128,58 +145,31 @@ def create_order(payload: OrderCreateIn, db: DbSession, user: CurrentUser) -> Or
             ],
             ensure_ascii=False,
         ),
+        items=order_items,
     )
-    db.add(order)
-    db.flush()
+    await order.insert()
 
-    for item in cart.items:
-        p = item.product
-        db.add(
-            OrderItem(
-                order_id=order.id,
-                product_id=item.product_id,
-                title_ar=p.title_ar if p else "Product",
-                title_en=p.title_en if p else "Product",
-                image=p.cover_image if p else None,
-                unit_price=item.unit_price,
-                qty=item.qty,
-                line_total=item.unit_price * item.qty,
-            )
-        )
-
-    # Clear cart after successful snapshot
-    for item in list(cart.items):
-        db.delete(item)
+    cart.items = []
     cart.gift_card_id = None
     cart.wrap_id = None
     cart.gift_from = ""
     cart.gift_to = ""
     cart.gift_message = ""
     set_addon_ids(cart, [])
-    db.commit()
+    await touch_cart(cart)
 
-    order = db.scalars(
-        select(Order).where(Order.id == order.id).options(selectinload(Order.items))
-    ).one()
     return serialize_order(order)
 
 
 @router.get("", response_model=Page)
-def list_orders(
-    db: DbSession,
+async def list_orders(
     user: CurrentUser,
     page: int = 1,
     page_size: int = 20,
 ) -> Page:
     page = max(1, page)
     page_size = min(max(1, page_size), 100)
-    stmt = (
-        select(Order)
-        .where(Order.user_id == user.id)
-        .options(selectinload(Order.items))
-        .order_by(Order.id.desc())
-    )
-    rows = db.scalars(stmt).all()
+    rows = await Order.find(Order.user_id == user.id).sort("-id").to_list()
     total = len(rows)
     chunk = rows[(page - 1) * page_size : (page - 1) * page_size + page_size]
     return Page(
@@ -191,31 +181,25 @@ def list_orders(
 
 
 @router.get("/{order_id}", response_model=OrderOut)
-def get_order(order_id: int, db: DbSession, user: CurrentUser) -> OrderOut:
-    order = db.scalars(
-        select(Order)
-        .where(Order.id == order_id, Order.user_id == user.id)
-        .options(selectinload(Order.items))
-    ).first()
+async def get_order(order_id: int, user: CurrentUser) -> OrderOut:
+    order = await Order.find_one(Order.id == order_id, Order.user_id == user.id)
     if order is None:
         raise AppError(404, "Order not found", code="ORDER_NOT_FOUND")
     return serialize_order(order)
 
 
 @router.post("/{order_id}/reorder", response_model=OkOut)
-def reorder(order_id: int, db: DbSession, user: CurrentUser) -> OkOut:
-    order = db.scalars(
-        select(Order)
-        .where(Order.id == order_id, Order.user_id == user.id)
-        .options(selectinload(Order.items))
-    ).first()
+async def reorder(order_id: int, user: CurrentUser) -> OkOut:
+    from app.services.pricing import new_cart_item_id
+
+    order = await Order.find_one(Order.id == order_id, Order.user_id == user.id)
     if order is None:
         raise AppError(404, "Order not found", code="ORDER_NOT_FOUND")
-    cart = get_or_create_cart(db, user.id)
+    cart = await get_or_create_cart(user.id)
     for item in order.items:
         if item.product_id is None:
             continue
-        product = db.get(Product, item.product_id)
+        product = await Product.find_one(Product.id == item.product_id)
         if product is None or product.status != "active":
             continue
         existing = next((i for i in cart.items if i.product_id == product.id), None)
@@ -223,13 +207,13 @@ def reorder(order_id: int, db: DbSession, user: CurrentUser) -> OkOut:
             existing.qty += item.qty
             existing.unit_price = product.price
         else:
-            db.add(
-                CartItem(
-                    cart_id=cart.id,
+            cart.items.append(
+                CartItemEmbed(
+                    id=await new_cart_item_id(),
                     product_id=product.id,
                     qty=item.qty,
                     unit_price=product.price,
                 )
             )
-    db.commit()
+    await touch_cart(cart)
     return OkOut()

@@ -1,3 +1,4 @@
+import 'package:flutter/scheduler.dart';
 import 'package:get/get.dart';
 
 import '../models/user.dart';
@@ -19,6 +20,22 @@ class AuthController extends GetxController {
   final RxBool isLoading = true.obs;
 
   bool get isAuthenticated => user.value != null;
+
+  bool _loginScheduled = false;
+
+  /// يتحقق من الجلسة. إن لم توجد يوجّه إلى `/login` بعد انتهاء البناء الحالي.
+  bool requireAuth() {
+    if (isAuthenticated) return true;
+    if (_loginScheduled) return false;
+    _loginScheduled = true;
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      _loginScheduled = false;
+      if (isAuthenticated) return;
+      if (Get.currentRoute == '/login') return;
+      Get.toNamed('/login');
+    });
+    return false;
+  }
 
   ApiClient get api {
     _apiClient ??= Get.find<ApiClient>();

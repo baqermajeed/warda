@@ -1,38 +1,55 @@
-from collections.abc import Generator
+from __future__ import annotations
 
-from sqlalchemy import create_engine, event
-from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
+from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
+from pymongo import ReturnDocument
 
 from app.config import settings
 
-
-connect_args = {"check_same_thread": False} if settings.is_sqlite else {}
-engine = create_engine(
-    settings.database_url,
-    pool_pre_ping=True,
-    future=True,
-    connect_args=connect_args,
-)
-
-if settings.is_sqlite:
-
-    @event.listens_for(engine, "connect")
-    def _sqlite_pragma(dbapi_connection, _connection_record) -> None:  # noqa: ANN001
-        cursor = dbapi_connection.cursor()
-        cursor.execute("PRAGMA foreign_keys=ON")
-        cursor.close()
+_client: AsyncIOMotorClient | None = None
+_database: AsyncIOMotorDatabase | None = None
 
 
-SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
+def get_client() -> AsyncIOMotorClient:
+    if _client is None:
+        raise RuntimeError("MongoDB client is not initialized")
+    return _client
 
 
-class Base(DeclarativeBase):
-    pass
+def get_database() -> AsyncIOMotorDatabase:
+    if _database is None:
+        raise RuntimeError("MongoDB database is not initialized")
+    return _database
 
 
-def get_db() -> Generator[Session, None, None]:
-    db = SessionLocal()
+async def connect_mongodb() -> None:
+    global _client, _database
+    _client = AsyncIOMotorClient(settings.mongodb_url)
+    _database = _client[settings.mongodb_db]
+
+
+async def close_mongodb() -> None:
+    global _client, _database
+    if _client is not None:
+        _client.close()
+    _client = None
+    _database = None
+
+
+async def next_seq(collection: str) -> int:
+    db = get_database()
+    doc = await db.counters.find_one_and_update(
+        {"_id": collection},
+        {"$inc": {"seq": 1}},
+        upsert=True,
+        return_document=ReturnDocument.AFTER,
+    )
+    return int(doc["seq"])
+
+
+async def ping_mongodb() -> bool:
     try:
-        yield db
-    finally:
-        db.close()
+        client = get_client()
+        await client.admin.command("ping")
+        return True
+    except Exception:
+        return False

@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from fastapi import APIRouter
-from sqlalchemy import select
-from sqlalchemy.orm import selectinload
+from beanie.operators import In
 
-from app.deps import CurrentUser, DbSession
+from fastapi import APIRouter
+
+from app.deps import CurrentUser
 from app.errors import AppError
 from app.models import Favorite, Product
 from app.schemas import OkOut, Page
@@ -14,8 +14,7 @@ router = APIRouter(prefix="/favorites", tags=["favorites"])
 
 
 @router.get("", response_model=Page)
-def list_favorites(
-    db: DbSession,
+async def list_favorites(
     user: CurrentUser,
     page: int = 1,
     page_size: int = 20,
@@ -23,20 +22,24 @@ def list_favorites(
 ) -> Page:
     page = max(1, page)
     page_size = min(max(1, page_size), 100)
-    stmt = (
-        select(Favorite)
-        .where(Favorite.user_id == user.id)
-        .options(selectinload(Favorite.product))
-        .order_by(Favorite.id.desc())
-    )
-    rows = db.scalars(stmt).all()
-    products = [f.product for f in rows if f.product and f.product.status == "active"]
+    rows = await Favorite.find(Favorite.user_id == user.id).sort("-id").to_list()
+    product_ids = [f.product_id for f in rows]
+    products_by_id: dict[int, Product] = {}
+    if product_ids:
+        prods = await Product.find(In(Product.id, product_ids)).to_list()
+        products_by_id = {p.id: p for p in prods if p.id is not None}
+    products = [
+        products_by_id[f.product_id]
+        for f in rows
+        if f.product_id in products_by_id
+        and products_by_id[f.product_id].status == "active"
+    ]
     if category and category != "all":
         products = [p for p in products if p.gift_type_tag == category]
     total = len(products)
     start = (page - 1) * page_size
     chunk = products[start : start + page_size]
-    fav_ids = {p.id for p in chunk}
+    fav_ids = {p.id for p in chunk if p.id is not None}
     return Page(
         items=[product_card(p, favorite_ids=fav_ids).model_dump() for p in chunk],
         total=total,
@@ -46,25 +49,25 @@ def list_favorites(
 
 
 @router.put("/{product_id}", response_model=OkOut)
-def add_favorite(product_id: int, db: DbSession, user: CurrentUser) -> OkOut:
-    product = db.get(Product, product_id)
+async def add_favorite(product_id: int, user: CurrentUser) -> OkOut:
+    product = await Product.find_one(Product.id == product_id)
     if product is None or product.status != "active":
         raise AppError(404, "Product not found", code="PRODUCT_NOT_FOUND")
-    existing = db.scalars(
-        select(Favorite).where(Favorite.user_id == user.id, Favorite.product_id == product_id)
-    ).first()
+    existing = await Favorite.find_one(
+        Favorite.user_id == user.id,
+        Favorite.product_id == product_id,
+    )
     if existing is None:
-        db.add(Favorite(user_id=user.id, product_id=product_id))
-        db.commit()
+        await Favorite(user_id=user.id, product_id=product_id).insert()
     return OkOut()
 
 
 @router.delete("/{product_id}", response_model=OkOut)
-def remove_favorite(product_id: int, db: DbSession, user: CurrentUser) -> OkOut:
-    row = db.scalars(
-        select(Favorite).where(Favorite.user_id == user.id, Favorite.product_id == product_id)
-    ).first()
+async def remove_favorite(product_id: int, user: CurrentUser) -> OkOut:
+    row = await Favorite.find_one(
+        Favorite.user_id == user.id,
+        Favorite.product_id == product_id,
+    )
     if row:
-        db.delete(row)
-        db.commit()
+        await row.delete()
     return OkOut()

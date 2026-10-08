@@ -6,6 +6,7 @@ import 'package:get/get.dart';
 import '../../controllers/product_details_controller.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
+import '../../widgets/common/app_image.dart';
 import '../../widgets/home/home_product_card.dart';
 
 /// شاشة تفاصيل المنتج — حسب Figma.
@@ -19,190 +20,199 @@ class ProductDetailsScreen extends GetView<ProductDetailsController> {
       body: Stack(
         children: [
           Positioned.fill(
-            child: ListView(
-              padding: EdgeInsets.only(bottom: 110.h),
-              children: [
-                _HeroGallery(controller: controller),
-                SizedBox(height: 26.h),
-                Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 20.w),
-                  child: Row(
-                    children: [
-                      Text(
-                        '${controller.priceLabel} ${'common_currency_iqd'.tr}',
-                        style: TextStyle(
-                          fontFamily: kFontFamily,
-                          fontSize: 16.sp,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.successGreen,
-                          height: 1.5,
-                        ),
-                      ),
-                      const Spacer(),
-                      Flexible(
-                        child: Text(
-                          controller.title.tr,
-                          textAlign: TextAlign.right,
+            child: Obx(() {
+              // إعادة البناء بعد انتهاء التحميل أو تغيّر الصور.
+              controller.isLoading.value;
+              final images = controller.images;
+              return ListView(
+                padding: EdgeInsets.only(bottom: 110.h),
+                children: [
+                  _HeroGallery(controller: controller, images: images),
+                  SizedBox(height: 26.h),
+                  Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 20.w),
+                    child: Row(
+                      children: [
+                        Text(
+                          '${controller.priceLabel} ${'common_currency_iqd'.tr}',
                           style: TextStyle(
                             fontFamily: kFontFamily,
                             fontSize: 16.sp,
-                            fontWeight: FontWeight.w800,
-                            color: AppColors.onboardingText,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.successGreen,
                             height: 1.5,
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                ),
-                SizedBox(height: 16.h),
-                SizedBox(
-                  height: 43.h,
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    reverse: true,
-                    padding: EdgeInsets.symmetric(horizontal: 20.w),
-                    itemCount: controller.badges.length,
-                    separatorBuilder: (_, _) => SizedBox(width: 10.w),
-                    itemBuilder: (_, i) {
-                      final badge = controller.badges[i];
-                      return _FeatureChip(
-                        label: badge.label.tr,
-                        iconAsset: badge.iconAsset,
-                      );
-                    },
-                  ),
-                ),
-                SizedBox(height: 26.h),
-                Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 20.w),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _SectionTitle('product_description'.tr),
-                      SizedBox(height: 12.h),
-                      Text(
-                        controller.description,
-                        textAlign: TextAlign.justify,
-                        style: TextStyle(
-                          fontFamily: kFontFamily,
-                          fontSize: 14.sp,
-                          fontWeight: FontWeight.w600,
-                          color: const Color(0xFF2E2E2E).withValues(alpha: 0.6),
-                          height: 1.5,
-                        ),
-                      ),
-                      SizedBox(height: 16.h),
-                      const Divider(height: 1),
-                      SizedBox(height: 16.h),
-                      _SectionTitle('product_dimensions'.tr),
-                      SizedBox(height: 12.h),
-                      Text(
-                        '${'product_height'.trParams({'value': controller.heightLabel})}\n${'product_width'.trParams({'value': controller.widthLabel})}',
-                        textAlign: TextAlign.right,
-                        style: TextStyle(
-                          fontFamily: kFontFamily,
-                          fontSize: 14.sp,
-                          fontWeight: FontWeight.w600,
-                          color: const Color(0xFF2E2E2E).withValues(alpha: 0.6),
-                          height: 1.5,
-                        ),
-                      ),
-                      SizedBox(height: 16.h),
-                      const Divider(height: 1),
-                      SizedBox(height: 16.h),
-                      _SectionTitle('product_care'.tr),
-                      SizedBox(height: 12.h),
-                      ...List.generate(controller.careSteps.length, (i) {
-                        return Padding(
-                          padding: EdgeInsets.only(bottom: 4.h),
+                        const Spacer(),
+                        Flexible(
                           child: Text(
-                            '${i + 1}. ${controller.careSteps[i]}',
-                            textAlign: TextAlign.justify,
+                            controller.title,
+                            textAlign: TextAlign.right,
                             style: TextStyle(
                               fontFamily: kFontFamily,
-                              fontSize: 14.sp,
-                              fontWeight: FontWeight.w500,
-                              color: const Color(0xFF2E2E2E)
-                                  .withValues(alpha: 0.6),
-                              height: 1.86,
-                            ),
-                          ),
-                        );
-                      }),
-                      SizedBox(height: 16.h),
-                      const Divider(height: 1),
-                      SizedBox(height: 16.h),
-                      Row(
-                        children: [
-                          GestureDetector(
-                            onTap: controller.viewMoreSimilar,
-                            child: Opacity(
-                              opacity: 0.6,
-                              child: Row(
-                                children: [
-                                  Transform.rotate(
-                                    angle: 1.5708,
-                                    child: SvgPicture.asset(
-                                      'assets/icons/product/caret.svg',
-                                      width: 16.w,
-                                      height: 16.w,
-                                    ),
-                                  ),
-                                  SizedBox(width: 4.w),
-                                  Text(
-                                    'common_show_more'.tr,
-                                    style: TextStyle(
-                                      fontFamily: kFontFamily,
-                                      fontSize: 12.sp,
-                                      fontWeight: FontWeight.w700,
-                                      color: AppColors.onboardingText,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                          const Spacer(),
-                          Text(
-                            'product_similar'.tr,
-                            style: TextStyle(
-                              fontFamily: kFontFamily,
-                              fontSize: 12.sp,
+                              fontSize: 16.sp,
                               fontWeight: FontWeight.w800,
                               color: AppColors.onboardingText,
+                              height: 1.5,
                             ),
                           ),
-                        ],
-                      ),
-                      SizedBox(height: 23.h),
-                    ],
-                  ),
-                ),
-                SizedBox(
-                  height: 186.h,
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    reverse: true,
-                    padding: EdgeInsets.symmetric(horizontal: 20.w),
-                    itemCount: controller.similar.length,
-                    separatorBuilder: (_, _) => SizedBox(width: 14.w),
-                    itemBuilder: (_, i) {
-                      final product = controller.similar[i];
-                      return GestureDetector(
-                        onTap: () => controller.openSimilar(product),
-                        child: HomeProductCard(
-                          product: product,
-                          isFavorite: false,
-                          onFavoriteTap: () {},
                         ),
-                      );
-                    },
+                      ],
+                    ),
                   ),
-                ),
-                SizedBox(height: 24.h),
-              ],
-            ),
+                  SizedBox(height: 16.h),
+                  if (controller.badges.isNotEmpty)
+                    SizedBox(
+                      height: 43.h,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        reverse: true,
+                        padding: EdgeInsets.symmetric(horizontal: 20.w),
+                        itemCount: controller.badges.length,
+                        separatorBuilder: (_, _) => SizedBox(width: 10.w),
+                        itemBuilder: (_, i) {
+                          final badge = controller.badges[i];
+                          return _FeatureChip(
+                            label: badge.label,
+                            iconAsset: badge.iconAsset,
+                          );
+                        },
+                      ),
+                    ),
+                  SizedBox(height: 26.h),
+                  Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 20.w),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _SectionTitle('product_description'.tr),
+                        SizedBox(height: 12.h),
+                        Text(
+                          controller.description,
+                          textAlign: TextAlign.justify,
+                          style: TextStyle(
+                            fontFamily: kFontFamily,
+                            fontSize: 14.sp,
+                            fontWeight: FontWeight.w600,
+                            color: const Color(0xFF2E2E2E)
+                                .withValues(alpha: 0.6),
+                            height: 1.5,
+                          ),
+                        ),
+                        SizedBox(height: 16.h),
+                        const Divider(height: 1),
+                        SizedBox(height: 16.h),
+                        _SectionTitle('product_dimensions'.tr),
+                        SizedBox(height: 12.h),
+                        Text(
+                          '${'product_height'.trParams({'value': controller.heightLabel})}\n${'product_width'.trParams({'value': controller.widthLabel})}',
+                          textAlign: TextAlign.right,
+                          style: TextStyle(
+                            fontFamily: kFontFamily,
+                            fontSize: 14.sp,
+                            fontWeight: FontWeight.w600,
+                            color: const Color(0xFF2E2E2E)
+                                .withValues(alpha: 0.6),
+                            height: 1.5,
+                          ),
+                        ),
+                        SizedBox(height: 16.h),
+                        const Divider(height: 1),
+                        SizedBox(height: 16.h),
+                        _SectionTitle('product_care'.tr),
+                        SizedBox(height: 12.h),
+                        ...List.generate(controller.careSteps.length, (i) {
+                          return Padding(
+                            padding: EdgeInsets.only(bottom: 4.h),
+                            child: Text(
+                              '${i + 1}. ${controller.careSteps[i]}',
+                              textAlign: TextAlign.justify,
+                              style: TextStyle(
+                                fontFamily: kFontFamily,
+                                fontSize: 14.sp,
+                                fontWeight: FontWeight.w500,
+                                color: const Color(0xFF2E2E2E)
+                                    .withValues(alpha: 0.6),
+                                height: 1.86,
+                              ),
+                            ),
+                          );
+                        }),
+                        SizedBox(height: 16.h),
+                        const Divider(height: 1),
+                        SizedBox(height: 16.h),
+                        Row(
+                          children: [
+                            GestureDetector(
+                              onTap: controller.viewMoreSimilar,
+                              child: Opacity(
+                                opacity: 0.6,
+                                child: Row(
+                                  children: [
+                                    Transform.rotate(
+                                      angle: 1.5708,
+                                      child: SvgPicture.asset(
+                                        'assets/icons/product/caret.svg',
+                                        width: 16.w,
+                                        height: 16.w,
+                                      ),
+                                    ),
+                                    SizedBox(width: 4.w),
+                                    Text(
+                                      'common_show_more'.tr,
+                                      style: TextStyle(
+                                        fontFamily: kFontFamily,
+                                        fontSize: 12.sp,
+                                        fontWeight: FontWeight.w700,
+                                        color: AppColors.onboardingText,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            const Spacer(),
+                            Text(
+                              'product_similar'.tr,
+                              style: TextStyle(
+                                fontFamily: kFontFamily,
+                                fontSize: 12.sp,
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.onboardingText,
+                              ),
+                            ),
+                          ],
+                        ),
+                        SizedBox(height: 23.h),
+                      ],
+                    ),
+                  ),
+                  if (controller.similar.isNotEmpty)
+                    SizedBox(
+                      height: 186.h,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        reverse: true,
+                        padding: EdgeInsets.symmetric(horizontal: 20.w),
+                        itemCount: controller.similar.length,
+                        separatorBuilder: (_, _) => SizedBox(width: 14.w),
+                        itemBuilder: (_, i) {
+                          final product = controller.similar[i];
+                          return GestureDetector(
+                            onTap: () => controller.openSimilar(product),
+                            child: HomeProductCard(
+                              product: product,
+                              isFavorite: false,
+                              onFavoriteTap: () {},
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  SizedBox(height: 24.h),
+                ],
+              );
+            }),
           ),
           Positioned(
             top: 0,
@@ -223,28 +233,33 @@ class ProductDetailsScreen extends GetView<ProductDetailsController> {
 }
 
 class _HeroGallery extends StatelessWidget {
-  const _HeroGallery({required this.controller});
+  const _HeroGallery({required this.controller, required this.images});
 
   final ProductDetailsController controller;
+  final List<String> images;
 
   @override
   Widget build(BuildContext context) {
+    final gallery = images.isEmpty
+        ? const ['assets/images/home/product_1.png']
+        : images;
+
     return SizedBox(
       height: 423.h,
       width: double.infinity,
       child: Stack(
         children: [
           PageView.builder(
+            key: ValueKey('gallery-${controller.productId}-${gallery.length}'),
             controller: controller.pageController,
-            itemCount: controller.images.length,
+            itemCount: gallery.length,
             onPageChanged: controller.onPageChanged,
             itemBuilder: (_, i) {
-              return Image.asset(
-                controller.images[i],
+              return AppImage(
+                source: gallery[i],
                 fit: BoxFit.cover,
                 width: double.infinity,
                 height: 423.h,
-                cacheWidth: 900,
               );
             },
           ),
@@ -256,7 +271,7 @@ class _HeroGallery extends StatelessWidget {
               final index = controller.imageIndex.value;
               return Row(
                 mainAxisAlignment: MainAxisAlignment.center,
-                children: List.generate(controller.images.length, (i) {
+                children: List.generate(gallery.length, (i) {
                   final active = i == index;
                   return Container(
                     width: 42.w,
@@ -302,7 +317,7 @@ class _HeroGallery extends StatelessWidget {
             bottom: 18.h,
             child: Obx(() {
               final i = controller.imageIndex.value + 1;
-              final total = controller.images.length;
+              final total = gallery.length;
               return _GlassBadge(
                 child: Text(
                   '$i/$total',

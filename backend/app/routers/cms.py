@@ -1,23 +1,17 @@
 from __future__ import annotations
 
 from fastapi import APIRouter
-from sqlalchemy import select
 
-from app.deps import CurrentUser, DbSession, OptionalUser
+from app.deps import OptionalUser
 from app.models import AppSetting, FaqCategory, PrivacySection, SupportTicket
 from app.schemas import OkOut, SupportTicketIn
-from sqlalchemy.orm import selectinload
 
 router = APIRouter(tags=["cms"])
 
 
 @router.get("/faq")
-def faq(db: DbSession) -> dict:
-    cats = db.scalars(
-        select(FaqCategory)
-        .options(selectinload(FaqCategory.items))
-        .order_by(FaqCategory.sort_order, FaqCategory.id)
-    ).all()
+async def faq() -> dict:
+    cats = await FaqCategory.find().sort("+sort_order", "+id").to_list()
     return {
         "items": [
             {
@@ -42,10 +36,8 @@ def faq(db: DbSession) -> dict:
 
 
 @router.get("/privacy")
-def privacy(db: DbSession) -> dict:
-    rows = db.scalars(
-        select(PrivacySection).order_by(PrivacySection.sort_order, PrivacySection.id)
-    ).all()
+async def privacy() -> dict:
+    rows = await PrivacySection.find().sort("+sort_order", "+id").to_list()
     return {
         "items": [
             {
@@ -62,7 +54,7 @@ def privacy(db: DbSession) -> dict:
 
 
 @router.get("/support/contact")
-def support_contact(db: DbSession) -> dict:
+async def support_contact() -> dict:
     defaults = {
         "phone": "+9647700000000",
         "whatsapp": "+9647700000000",
@@ -71,16 +63,15 @@ def support_contact(db: DbSession) -> dict:
         "hours_en": "Daily 9 AM – 9 PM",
     }
     for key in list(defaults):
-        row = db.get(AppSetting, f"support.{key}")
+        row = await AppSetting.find_one(AppSetting.key == f"support.{key}")
         if row:
             defaults[key] = row.value
     return defaults
 
 
 @router.post("/support/tickets", response_model=OkOut)
-def create_ticket(
+async def create_ticket(
     payload: SupportTicketIn,
-    db: DbSession,
     user: OptionalUser,
 ) -> OkOut:
     ticket = SupportTicket(
@@ -90,16 +81,15 @@ def create_ticket(
         subject=payload.subject.strip(),
         message=payload.message.strip(),
     )
-    db.add(ticket)
-    db.commit()
+    await ticket.insert()
     return OkOut()
 
 
 @router.get("/app/share")
-def share(db: DbSession) -> dict:
-    url = db.get(AppSetting, "share.url")
-    message_ar = db.get(AppSetting, "share.message_ar")
-    message_en = db.get(AppSetting, "share.message_en")
+async def share() -> dict:
+    url = await AppSetting.find_one(AppSetting.key == "share.url")
+    message_ar = await AppSetting.find_one(AppSetting.key == "share.message_ar")
+    message_en = await AppSetting.find_one(AppSetting.key == "share.message_en")
     return {
         "url": url.value if url else "https://warda.app/download",
         "message_ar": message_ar.value

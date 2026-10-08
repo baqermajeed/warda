@@ -4,6 +4,7 @@ import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+from beanie import init_beanie
 from fastapi import FastAPI, Request
 from fastapi.exceptions import HTTPException, RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -11,8 +12,9 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
 
 from app.config import settings
-from app.db import Base, engine
+from app.db import close_mongodb, connect_mongodb, get_database
 from app.errors import AppError, app_error_handler, error_payload, http_exception_handler
+from app.models import ALL_DOCUMENT_MODELS
 from app.routers import (
     auth,
     cart,
@@ -30,10 +32,10 @@ from app.routers import (
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     Path(settings.upload_dir).mkdir(parents=True, exist_ok=True)
-    # Dev convenience: create tables if using SQLite / first boot.
-    # Prefer Alembic in production.
-    Base.metadata.create_all(bind=engine)
+    await connect_mongodb()
+    await init_beanie(database=get_database(), document_models=ALL_DOCUMENT_MODELS)
     yield
+    await close_mongodb()
 
 
 app = FastAPI(title=settings.app_name, version="1.0.0", lifespan=lifespan)

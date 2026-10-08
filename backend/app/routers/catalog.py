@@ -1,11 +1,11 @@
 from __future__ import annotations
 
+from beanie.operators import Or, RegEx
+
 from fastapi import APIRouter
-from sqlalchemy import func, or_, select
-from sqlalchemy.orm import selectinload
 
 from app.cache import cache_json_get, cache_json_set
-from app.deps import CurrentUser, DbSession, OptionalUser
+from app.deps import CurrentUser, OptionalUser
 from app.errors import AppError
 from app.models import Banner, Category, Favorite, Product
 from app.schemas import (
@@ -20,44 +20,49 @@ from app.services.serializers import product_card, product_detail
 router = APIRouter(tags=["catalog"])
 
 
-def _favorite_ids(db: DbSession, user_id: int | None) -> set[int]:
+async def _favorite_ids(user_id: int | None) -> set[int]:
     if user_id is None:
         return set()
-    rows = db.scalars(select(Favorite.product_id).where(Favorite.user_id == user_id)).all()
-    return set(rows)
+    rows = await Favorite.find(Favorite.user_id == user_id).to_list()
+    return {r.product_id for r in rows}
 
 
 @router.get("/home", response_model=HomeOut)
-def home(db: DbSession, user: OptionalUser) -> HomeOut:
-    favs = _favorite_ids(db, user.id if user else None)
+async def home(user: OptionalUser) -> HomeOut:
+    favs = await _favorite_ids(user.id if user else None)
     cached = cache_json_get("home:v1")
     if cached and user is None:
         return HomeOut(**cached)
 
-    banners = db.scalars(
-        select(Banner).where(Banner.is_active.is_(True)).order_by(Banner.sort_order, Banner.id)
-    ).all()
-    categories = db.scalars(
-        select(Category)
-        .where(Category.is_active.is_(True), Category.parent_id.is_(None))
-        .order_by(Category.sort_order, Category.id)
+    banners = (
+        await Banner.find(Banner.is_active == True)  # noqa: E712
+        .sort("+sort_order", "+id")
+        .to_list()
+    )
+    categories = (
+        await Category.find(
+            Category.is_active == True,  # noqa: E712
+            Category.parent_id == None,  # noqa: E711
+        )
+        .sort("+sort_order", "+id")
         .limit(12)
-    ).all()
-    latest = db.scalars(
-        select(Product)
-        .where(Product.status == "active", Product.is_latest.is_(True))
-        .order_by(Product.id.desc())
+        .to_list()
+    )
+    latest = (
+        await Product.find(Product.status == "active", Product.is_latest == True)  # noqa: E712
+        .sort("-id")
         .limit(12)
-    ).all()
-    popular = db.scalars(
-        select(Product)
-        .where(Product.status == "active", Product.is_popular.is_(True))
-        .order_by(Product.id.desc())
+        .to_list()
+    )
+    popular = (
+        await Product.find(Product.status == "active", Product.is_popular == True)  # noqa: E712
+        .sort("-id")
         .limit(12)
-    ).all()
-    all_gifts = db.scalars(
-        select(Product).where(Product.status == "active").order_by(Product.id.desc()).limit(20)
-    ).all()
+        .to_list()
+    )
+    all_gifts = (
+        await Product.find(Product.status == "active").sort("-id").limit(20).to_list()
+    )
 
     payload = HomeOut(
         banners=[
@@ -81,18 +86,17 @@ def home(db: DbSession, user: OptionalUser) -> HomeOut:
 
 
 @router.get("/categories", response_model=list[CategoryOut])
-def categories(db: DbSession) -> list[CategoryOut]:
-    rows = db.scalars(
-        select(Category)
-        .where(Category.is_active.is_(True))
-        .order_by(Category.sort_order, Category.id)
-    ).all()
+async def categories() -> list[CategoryOut]:
+    rows = (
+        await Category.find(Category.is_active == True)  # noqa: E712
+        .sort("+sort_order", "+id")
+        .to_list()
+    )
     return [CategoryOut.model_validate(c) for c in rows]
 
 
 @router.get("/products", response_model=Page)
-def list_products(
-    db: DbSession,
+async def list_products(
     user: OptionalUser,
     q: str | None = None,
     person: str | None = None,
@@ -107,40 +111,44 @@ def list_products(
 ) -> Page:
     page = max(1, page)
     page_size = min(max(1, page_size), 100)
-    favs = _favorite_ids(db, user.id if user else None)
+    favs = await _favorite_ids(user.id if user else None)
 
-    stmt = select(Product).where(Product.status == "active")
+    filters = [Product.status == "active"]
     if q:
-        like = f"%{q.strip()}%"
-        stmt = stmt.where(
-            or_(Product.title_ar.ilike(like), Product.title_en.ilike(like), Product.sku.ilike(like))
+        term = q.strip()
+        filters.append(
+            Or(
+                RegEx(Product.title_ar, term, "i"),
+                RegEx(Product.title_en, term, "i"),
+                RegEx(Product.sku, term, "i"),
+            )
         )
     if person:
-        stmt = stmt.where(Product.person_tag == person)
+        filters.append(Product.person_tag == person)
     if occasion:
-        stmt = stmt.where(Product.occasion_tag == occasion)
+        filters.append(Product.occasion_tag == occasion)
     if gift_type:
-        stmt = stmt.where(Product.gift_type_tag == gift_type)
+        filters.append(Product.gift_type_tag == gift_type)
     if budget:
-        stmt = stmt.where(Product.budget_tag == budget)
+        filters.append(Product.budget_tag == budget)
     if delivery:
-        stmt = stmt.where(Product.delivery_tag == delivery)
+        filters.append(Product.delivery_tag == delivery)
     if category_id:
-        stmt = stmt.where(Product.category_id == category_id)
+        filters.append(Product.category_id == category_id)
 
-    count_stmt = select(func.count()).select_from(stmt.subquery())
-    total = db.scalar(count_stmt) or 0
+    base = Product.find(*filters)
+    total = await base.count()
 
     if sort == "priceAsc":
-        stmt = stmt.order_by(Product.price.asc())
+        query = base.sort("+price")
     elif sort == "priceDesc":
-        stmt = stmt.order_by(Product.price.desc())
+        query = base.sort("-price")
     elif sort == "popular":
-        stmt = stmt.order_by(Product.is_popular.desc(), Product.id.desc())
+        query = base.sort("-is_popular", "-id")
     else:
-        stmt = stmt.order_by(Product.id.desc())
+        query = base.sort("-id")
 
-    rows = db.scalars(stmt.offset((page - 1) * page_size).limit(page_size)).all()
+    rows = await query.skip((page - 1) * page_size).limit(page_size).to_list()
     return Page(
         items=[product_card(p, favorite_ids=favs).model_dump() for p in rows],
         total=total,
@@ -150,31 +158,27 @@ def list_products(
 
 
 @router.get("/products/{product_id}", response_model=ProductDetailOut)
-def get_product(product_id: int, db: DbSession, user: OptionalUser) -> ProductDetailOut:
-    product = db.scalars(
-        select(Product)
-        .where(Product.id == product_id, Product.status == "active")
-        .options(selectinload(Product.images))
-    ).first()
+async def get_product(product_id: int, user: OptionalUser) -> ProductDetailOut:
+    product = await Product.find_one(Product.id == product_id, Product.status == "active")
     if product is None:
         raise AppError(404, "Product not found", code="PRODUCT_NOT_FOUND")
-    favs = _favorite_ids(db, user.id if user else None)
-    similar = db.scalars(
-        select(Product)
-        .where(
+    favs = await _favorite_ids(user.id if user else None)
+    similar = (
+        await Product.find(
             Product.status == "active",
             Product.id != product.id,
             Product.gift_type_tag == product.gift_type_tag,
         )
         .limit(8)
-    ).all()
+        .to_list()
+    )
     if not similar:
-        similar = db.scalars(
-            select(Product)
-            .where(Product.status == "active", Product.id != product.id)
-            .order_by(Product.id.desc())
+        similar = (
+            await Product.find(Product.status == "active", Product.id != product.id)
+            .sort("-id")
             .limit(8)
-        ).all()
+            .to_list()
+        )
     return product_detail(product, similar=list(similar), favorite_ids=favs)
 
 

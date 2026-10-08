@@ -1,16 +1,12 @@
 services:
-  db:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_DB: warda
-      POSTGRES_USER: warda
-      POSTGRES_PASSWORD: warda
+  mongo:
+    image: mongo:7
     ports:
-      - "5432:5432"
+      - "27017:27017"
     volumes:
-      - warda_pg:/var/lib/postgresql/data
+      - warda_mongo:/data/db
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U warda"]
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -28,7 +24,8 @@ services:
       APP_NAME: Warda
       APP_ENV: development
       SECRET_KEY: warda-dev-change-me-please
-      DATABASE_URL: postgresql+psycopg://warda:warda@db:5432/warda
+      MONGODB_URL: mongodb://mongo:27017
+      MONGODB_DB: warda
       REDIS_URL: redis://redis:6379/0
       CORS_ORIGINS: "*"
       TRUSTED_HOSTS: localhost,127.0.0.1,api
@@ -39,11 +36,11 @@ services:
     volumes:
       - ./uploads:/app/uploads
     depends_on:
-      db:
+      mongo:
         condition: service_healthy
       redis:
         condition: service_started
 
 volumes:
-  warda_pg:
+  warda_mongo:
   warda_redis:

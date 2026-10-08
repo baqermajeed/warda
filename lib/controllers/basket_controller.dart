@@ -100,13 +100,7 @@ class BasketController extends GetxController {
     loadCatalogOptions();
   }
 
-  bool _requireAuth() {
-    if (!Get.find<AuthController>().isAuthenticated) {
-      Get.toNamed('/login');
-      return false;
-    }
-    return true;
-  }
+  bool _requireAuth() => Get.find<AuthController>().requireAuth();
 
   BasketOption _mapOption(Map<String, dynamic> m) {
     final image = m['image'] as String? ?? '';

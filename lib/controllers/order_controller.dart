@@ -114,10 +114,7 @@ class OrderController extends GetxController {
   }
 
   Future<void> confirmOrder() async {
-    if (!Get.find<AuthController>().isAuthenticated) {
-      Get.toNamed('/login');
-      return;
-    }
+    if (!Get.find<AuthController>().requireAuth()) return;
     final name = recipientName.value.trim();
     final phone = recipientPhone.value.replaceAll(RegExp(r'\s'), '');
     if (name.length < 2) {

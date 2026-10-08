@@ -9,7 +9,8 @@ class Settings(BaseSettings):
     app_name: str = "Warda"
     app_env: str = "development"
     secret_key: str = "warda-dev-change-me-please"
-    database_url: str = "sqlite:///./warda.db"
+    mongodb_url: str = "mongodb://127.0.0.1:27017"
+    mongodb_db: str = "warda"
     redis_url: str = ""
     cors_origins: str = "*"
     trusted_hosts: str = "localhost,127.0.0.1,testserver"
@@ -37,10 +38,6 @@ class Settings(BaseSettings):
         if self.is_dev or "*" in raw:
             return ["*"]
         return raw
-
-    @property
-    def is_sqlite(self) -> bool:
-        return self.database_url.startswith("sqlite")
 
     @property
     def is_dev(self) -> bool:

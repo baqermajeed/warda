@@ -40,13 +40,7 @@ class FavoritesController extends GetxController {
     loadFavorites();
   }
 
-  bool _requireAuth() {
-    if (!Get.find<AuthController>().isAuthenticated) {
-      Get.toNamed('/login');
-      return false;
-    }
-    return true;
-  }
+  bool _requireAuth() => Get.find<AuthController>().requireAuth();
 
   Future<void> loadFavorites() async {
     if (!_requireAuth()) return;

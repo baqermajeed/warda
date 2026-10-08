@@ -4,7 +4,7 @@
 /// - هاتف حقيقي (نفس Wi‑Fi): IP جهاز الكمبيوتر مثل `http://192.168.1.221:8000`
 /// - ويندوز / محاكي iOS: `http://127.0.0.1:8000`
 abstract final class ApiConfig {
-  static const String baseUrl = 'http://192.168.1.221:8000';
+  static const String baseUrl = 'http://192.168.0.84:8000';
 
   static const String apiPrefix = '/api/v1';
   static const String authPrefix = '/api/v1/auth';

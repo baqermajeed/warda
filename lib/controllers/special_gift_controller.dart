@@ -342,10 +342,7 @@ class SpecialGiftController extends GetxController {
   }
 
   Future<void> toggleFavorite(String id) async {
-    if (!Get.find<AuthController>().isAuthenticated) {
-      Get.toNamed('/login');
-      return;
-    }
+    if (!Get.find<AuthController>().requireAuth()) return;
     final productId = int.tryParse(id);
     if (productId == null) return;
     final wasFav = favoriteIds.contains(id);

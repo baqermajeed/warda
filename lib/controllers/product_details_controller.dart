@@ -86,7 +86,10 @@ class ProductDetailsController extends GetxController {
           .map((e) => ApiConfig.imageUrl('$e') ?? '$e')
           .where((e) => e.isNotEmpty)
           .toList();
-      if (imgs.isNotEmpty) images = imgs;
+      if (imgs.isNotEmpty) {
+        images = imgs;
+        imageIndex.value = 0;
+      }
 
       careSteps = (data['care_steps_ar'] as List? ?? [])
           .map((e) => '$e')
@@ -114,10 +117,7 @@ class ProductDetailsController extends GetxController {
   void onPageChanged(int index) => imageIndex.value = index;
 
   Future<void> toggleFavorite() async {
-    if (!Get.find<AuthController>().isAuthenticated) {
-      Get.toNamed('/login');
-      return;
-    }
+    if (!Get.find<AuthController>().requireAuth()) return;
     isFavorite.toggle();
     if (Get.isRegistered<HomeController>()) {
       await Get.find<HomeController>().toggleFavorite(productId);
@@ -125,10 +125,7 @@ class ProductDetailsController extends GetxController {
   }
 
   Future<void> addToBasket() async {
-    if (!Get.find<AuthController>().isAuthenticated) {
-      Get.toNamed('/login');
-      return;
-    }
+    if (!Get.find<AuthController>().requireAuth()) return;
     final id = int.tryParse(productId);
     if (id == null) return;
     try {

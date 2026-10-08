@@ -175,13 +175,7 @@ class OrdersController extends GetxController {
     loadOrders();
   }
 
-  bool _requireAuth() {
-    if (!Get.find<AuthController>().isAuthenticated) {
-      Get.toNamed('/login');
-      return false;
-    }
-    return true;
-  }
+  bool _requireAuth() => Get.find<AuthController>().requireAuth();
 
   OrderStatus _mapStatus(String? raw) {
     switch ((raw ?? '').toLowerCase()) {

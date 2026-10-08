@@ -1,37 +1,31 @@
 from __future__ import annotations
 
+from datetime import datetime
+
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
+from pymongo import MongoClient
 
-from app.db import Base, get_db
+from app.config import settings
 from app.main import app
-from app.models import Product
+
+
+def _mongo_db():
+    return MongoClient(settings.mongodb_url)[settings.mongodb_db]
+
+
+def _clear_db() -> None:
+    db = _mongo_db()
+    for name in db.list_collection_names():
+        db.drop_collection(name)
 
 
 @pytest.fixture()
 def client():
-    engine = create_engine(
-        "sqlite://",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
-    TestingSessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
-    Base.metadata.create_all(bind=engine)
-
-    def override_get_db():
-        db = TestingSessionLocal()
-        try:
-            yield db
-        finally:
-            db.close()
-
-    app.dependency_overrides[get_db] = override_get_db
+    _clear_db()
     with TestClient(app) as c:
         yield c
-    app.dependency_overrides.clear()
+    _clear_db()
 
 
 def test_health(client):
@@ -84,6 +78,31 @@ def test_lookups(client):
 
 
 def test_cart_and_order_flow(client):
+    now = datetime.utcnow()
+    product_id = 9001
+    _mongo_db().products.insert_one(
+        {
+            "_id": product_id,
+            "sku": "T-1",
+            "title_ar": "باقة",
+            "title_en": "Bouquet",
+            "description_ar": "x",
+            "description_en": "x",
+            "price": 120000,
+            "rating": "4.5",
+            "care_steps_ar": "",
+            "care_steps_en": "",
+            "badges_json": "[]",
+            "is_latest": False,
+            "is_popular": False,
+            "status": "active",
+            "cover_image": "/api/v1/media/p.jpg",
+            "images": [],
+            "created_at": now,
+            "updated_at": now,
+        }
+    )
+
     phone = "07709876543"
     tokens = client.post(
         "/api/v1/auth/register",
@@ -95,27 +114,6 @@ def test_cart_and_order_flow(client):
         },
     ).json()
     headers = {"Authorization": f"Bearer {tokens['access_token']}"}
-
-    gen = app.dependency_overrides[get_db]()
-    db = next(gen)
-    product = Product(
-        sku="T-1",
-        title_ar="باقة",
-        title_en="Bouquet",
-        description_ar="x",
-        description_en="x",
-        price=120000,
-        status="active",
-        cover_image="/api/v1/media/p.jpg",
-    )
-    db.add(product)
-    db.commit()
-    db.refresh(product)
-    product_id = product.id
-    try:
-        next(gen)
-    except StopIteration:
-        pass
 
     add = client.post(
         "/api/v1/cart/items",

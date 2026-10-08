@@ -278,10 +278,7 @@ class CategoriesController extends GetxController {
   }
 
   Future<void> toggleFavorite(String productId) async {
-    if (!Get.find<AuthController>().isAuthenticated) {
-      Get.toNamed('/login');
-      return;
-    }
+    if (!Get.find<AuthController>().requireAuth()) return;
     final id = int.tryParse(productId);
     if (id == null) return;
     final wasFav = favoriteIds.contains(productId);
