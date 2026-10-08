@@ -1,0 +1,118 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ألوان وردة — مأخوذة من تطبيق Flutter (AppColors) */
+:root {
+  --background: #fdf9f6;
+  --foreground: #402628;
+  --card: #ffffff;
+  --card-foreground: #402628;
+  --muted: #f6ece9;
+  --muted-foreground: #7c6461;
+  --border: #ead9d4;
+  --primary: #4d0f14;
+  --primary-foreground: #ffffff;
+  --accent: #ad8a83;
+  --accent-foreground: #ffffff;
+  --soft: #c7a49d;
+  --destructive: #c62828;
+  --success: #0e8a61;
+  --ring: #ad8a83;
+  --sidebar: #1e0a0c;
+}
+
+.dark {
+  --background: #130b0c;
+  --foreground: #f6ecea;
+  --card: #1d1213;
+  --card-foreground: #f6ecea;
+  --muted: #281a1b;
+  --muted-foreground: #b5a19e;
+  --border: #3a2729;
+  --primary: #b8505a;
+  --primary-foreground: #ffffff;
+  --accent: #c7a49d;
+  --accent-foreground: #1e0a0c;
+  --soft: #8d6f6a;
+  --destructive: #ef5350;
+  --success: #34c38f;
+  --ring: #c7a49d;
+  --sidebar: #0d0607;
+}
+
+* {
+  border-color: var(--border);
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+html {
+  overflow-x: clip;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-tajawal), ui-sans-serif, system-ui, sans-serif;
+}
+
+::selection {
+  background: rgba(173, 138, 131, 0.35);
+}
+
+@layer utilities {
+  .dash-canvas {
+    background:
+      radial-gradient(1100px 520px at 0% -8%, #f8e9e6 0%, transparent 58%),
+      radial-gradient(900px 480px at 100% 0%, #f5e6df 0%, transparent 52%),
+      radial-gradient(760px 420px at 85% 100%, #fbeff0 0%, transparent 48%),
+      var(--background);
+  }
+
+  .dark .dash-canvas {
+    background:
+      radial-gradient(1000px 480px at 100% -10%, rgba(184, 80, 90, 0.22) 0%, transparent 55%),
+      radial-gradient(800px 420px at 0% 100%, rgba(199, 164, 157, 0.12) 0%, transparent 50%),
+      var(--background);
+  }
+
+  .glass-panel {
+    background: color-mix(in srgb, var(--card) 94%, transparent);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    border: 1px solid var(--border);
+    box-shadow: 0 12px 32px rgb(64 38 40 / 0.06);
+  }
+
+  .dark .glass-panel {
+    background: color-mix(in srgb, var(--card) 86%, transparent);
+    box-shadow: 0 18px 48px rgb(0 0 0 / 0.35);
+  }
+
+  .btn-primary-gradient {
+    background: linear-gradient(135deg, #4d0f14 0%, #8a3a42 100%);
+    color: #fff;
+  }
+
+  .dark .btn-primary-gradient {
+    background: linear-gradient(135deg, #8a3a42 0%, #b8505a 100%);
+  }
+
+  .btn-primary-gradient:hover {
+    filter: brightness(1.08);
+  }
+
+  .glow-primary {
+    box-shadow: 0 8px 24px rgba(77, 15, 20, 0.25);
+  }
+
+  .table-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+  }
+}

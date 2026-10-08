@@ -6,6 +6,7 @@ import 'package:get/get.dart';
 import '../../controllers/orders_controller.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
+import '../../widgets/common/app_image.dart';
 
 /// شاشة تفاصيل الطلب.
 class OrderDetailsScreen extends GetView<OrdersController> {
@@ -333,13 +334,17 @@ class _ProductRow extends StatelessWidget {
               color: AppColors.successGreen,
             ),
           ),
-          const Spacer(),
-          Column(
+          SizedBox(width: 10.w),
+          Expanded(
+            child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
                 item.title.tr,
+                textAlign: TextAlign.right,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   fontFamily: kFontFamily,
                   fontSize: 10.sp,
@@ -359,15 +364,15 @@ class _ProductRow extends StatelessWidget {
               ),
             ],
           ),
+          ),
           SizedBox(width: 10.w),
           ClipRRect(
             borderRadius: BorderRadius.circular(20.r),
-            child: Image.asset(
-              item.imageAsset,
+            child: AppImage(
+              source: item.imageAsset,
               width: 69.w,
               height: 61.h,
-              fit: BoxFit.cover,
-              cacheWidth: 200,
+              fallbackAsset: 'assets/images/orders/product.jpg',
             ),
           ),
         ],
@@ -455,25 +460,29 @@ class _WrapRow extends StatelessWidget {
               color: AppColors.successGreen,
             ),
           ),
-          const Spacer(),
-          Text(
-            wrap.title,
-            style: TextStyle(
-              fontFamily: kFontFamily,
-              fontSize: 10.sp,
-              fontWeight: FontWeight.w800,
-              color: const Color(0xFF3D3E46),
+          SizedBox(width: 10.w),
+          Expanded(
+            child: Text(
+              wrap.title,
+              textAlign: TextAlign.right,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontFamily: kFontFamily,
+                fontSize: 10.sp,
+                fontWeight: FontWeight.w800,
+                color: const Color(0xFF3D3E46),
+              ),
             ),
           ),
           SizedBox(width: 10.w),
           ClipRRect(
             borderRadius: BorderRadius.circular(16.r),
-            child: Image.asset(
-              wrap.imageAsset,
+            child: AppImage(
+              source: wrap.imageAsset,
               width: 54.w,
               height: 48.h,
-              fit: BoxFit.cover,
-              cacheWidth: 160,
+              fallbackAsset: 'assets/images/orders/product.jpg',
             ),
           ),
         ],
@@ -503,10 +512,9 @@ class _ThumbWithExpand extends StatelessWidget {
           Positioned.fill(
             child: ClipRRect(
               borderRadius: BorderRadius.circular(16.r),
-              child: Image.asset(
-                imageAsset,
-                fit: BoxFit.cover,
-                cacheWidth: 300,
+              child: AppImage(
+                source: imageAsset,
+                fallbackAsset: 'assets/images/orders/product.jpg',
               ),
             ),
           ),

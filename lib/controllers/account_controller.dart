@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import '../core/errors/api_exception.dart';
+import '../models/user.dart';
 import '../services/api_client.dart';
 import '../services/token_storage.dart';
 import '../widgets/account/account_action_dialog.dart';
@@ -35,6 +36,12 @@ class AccountController extends GetxController {
   void onInit() {
     super.onInit();
     pendingLanguage.value = _locale.languageCode.value;
+    _syncFromUser(_auth.user.value);
+    ever<User?>(_auth.user, _syncFromUser);
+  }
+
+  void _syncFromUser(User? user) {
+    if (user != null) notificationsEnabled.value = user.notificationsEnabled;
   }
 
   @override
@@ -59,7 +66,23 @@ class AccountController extends GetxController {
     return phone;
   }
 
-  void toggleNotifications(bool value) => notificationsEnabled.value = value;
+  /// يحفظ تفضيل الإشعارات على الخادم (`notifications_enabled`).
+  Future<void> toggleNotifications(bool value) async {
+    final previous = notificationsEnabled.value;
+    notificationsEnabled.value = value;
+    if (!_auth.isAuthenticated) return;
+    try {
+      _auth.user.value = await _api.updateProfile({
+        'notifications_enabled': value,
+      });
+    } on ApiException catch (e) {
+      notificationsEnabled.value = previous;
+      Get.snackbar('common_app_name'.tr, e.message);
+    } catch (_) {
+      notificationsEnabled.value = previous;
+      Get.snackbar('common_app_name'.tr, 'auth_error_generic'.tr);
+    }
+  }
 
   void editProfile() {
     final user = _auth.user.value;
@@ -143,6 +166,13 @@ class AccountController extends GetxController {
     final code = pendingLanguage.value;
     await _locale.setLanguage(code);
     Get.back();
+    if (_auth.isAuthenticated) {
+      try {
+        _auth.user.value = await _api.updateProfile({'locale': code});
+      } catch (_) {
+        // اللغة محفوظة محليًا؛ تُرسل مجددًا عند التغيير القادم
+      }
+    }
     Get.snackbar(
       'common_app_name'.tr,
       code == 'ar' ? 'lang_selected_ar'.tr : 'lang_selected_en'.tr,

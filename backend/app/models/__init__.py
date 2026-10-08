@@ -352,6 +352,27 @@ class AppSetting(Document):
         name = "app_settings"
 
 
+class Notification(Document):
+    id: int | None = None
+    user_id: int
+    type: str = "general"
+    title_ar: str
+    title_en: str
+    body_ar: str = ""
+    body_en: str = ""
+    link: str | None = None
+    dedupe_key: str | None = None
+    read_at: datetime | None = None
+    created_at: datetime = Field(default_factory=utcnow)
+
+    class Settings:
+        name = "notifications"
+
+    @before_event(Insert)
+    async def _on_insert(self) -> None:
+        await _assign_doc_id(self)
+
+
 ALL_DOCUMENT_MODELS = [
     User,
     RefreshToken,
@@ -369,4 +390,5 @@ ALL_DOCUMENT_MODELS = [
     PrivacySection,
     SupportTicket,
     AppSetting,
+    Notification,
 ]

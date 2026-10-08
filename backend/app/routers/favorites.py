@@ -9,6 +9,7 @@ from app.errors import AppError
 from app.models import Favorite, Product
 from app.schemas import OkOut, Page
 from app.services.serializers import product_card
+from app.services.taxonomy import gift_type_tags
 
 router = APIRouter(prefix="/favorites", tags=["favorites"])
 
@@ -35,7 +36,8 @@ async def list_favorites(
         and products_by_id[f.product_id].status == "active"
     ]
     if category and category != "all":
-        products = [p for p in products if p.gift_type_tag == category]
+        tags = set(gift_type_tags(category))
+        products = [p for p in products if p.gift_type_tag in tags]
     total = len(products)
     start = (page - 1) * page_size
     chunk = products[start : start + page_size]

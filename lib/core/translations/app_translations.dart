@@ -268,6 +268,11 @@ const Map<String, String> _ar = {
   'order_status_delivered': 'تم التوصيل',
   'order_status_shipping': 'قيد التوصيل',
   'order_status_cancelled': 'ملغي',
+  'order_status_pending': 'قيد المراجعة',
+  'product_share_copied': 'تم نسخ رابط المنتج — الصقه لمشاركته',
+  'notifications_title': 'الإشعارات',
+  'notifications_mark_all_read': 'تحديد الكل كمقروء',
+  'notifications_empty': 'لا توجد إشعارات حاليًا',
   'orders_reorder_snack': 'تمت إضافة طلب @code لإعادة الطلب',
   'orders_custom_wrap': 'تغليف مخصص',
 
@@ -785,6 +790,11 @@ const Map<String, String> _en = {
   'order_status_delivered': 'Delivered',
   'order_status_shipping': 'In delivery',
   'order_status_cancelled': 'Cancelled',
+  'order_status_pending': 'Pending',
+  'product_share_copied': 'Product link copied — paste it to share',
+  'notifications_title': 'Notifications',
+  'notifications_mark_all_read': 'Mark all as read',
+  'notifications_empty': 'No notifications yet',
   'orders_reorder_snack': 'Order @code added for reorder',
   'orders_custom_wrap': 'Custom wrapping',
 

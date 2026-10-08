@@ -48,3 +48,12 @@ def client_ip(x_forwarded_for: Annotated[str | None, Header()] = None) -> str:
     if x_forwarded_for:
         return x_forwarded_for.split(",")[0].strip()
     return ""
+
+
+def get_admin_user(user: CurrentUser) -> User:
+    if not user.is_admin:
+        raise AppError(403, "Admin only", code="FORBIDDEN")
+    return user
+
+
+AdminUser = Annotated[User, Depends(get_admin_user)]

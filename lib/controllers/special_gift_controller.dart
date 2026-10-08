@@ -77,7 +77,7 @@ class SpecialGiftController extends GetxController {
     return 'sg_cta_next'.tr;
   }
 
-  final recipients = const [
+  static const _defaultRecipients = [
     SpecialGiftOption(
       id: 'parents',
       label: 'sg_opt_parents',
@@ -121,7 +121,7 @@ class SpecialGiftController extends GetxController {
     ),
   ];
 
-  final occasions = const [
+  static const _defaultOccasions = [
     SpecialGiftOption(
       id: 'birthday',
       label: 'opt_birthday',
@@ -180,7 +180,7 @@ class SpecialGiftController extends GetxController {
     ),
   ];
 
-  final giftTypes = const [
+  static const _defaultGiftTypes = [
     SpecialGiftOption(
       id: 'flowers',
       label: 'sg_opt_flower_bouquets',
@@ -239,6 +239,49 @@ class SpecialGiftController extends GetxController {
     ),
   ];
 
+  /// الخيارات المعروضة — تُحدَّث من `GET /special-gift/options`
+  /// مع الإبقاء على الأيقونات المحلية لكل معرّف.
+  final recipients = <SpecialGiftOption>[..._defaultRecipients].obs;
+  final occasions = <SpecialGiftOption>[..._defaultOccasions].obs;
+  final giftTypes = <SpecialGiftOption>[..._defaultGiftTypes].obs;
+
+  @override
+  void onInit() {
+    super.onInit();
+    loadOptions();
+  }
+
+  Future<void> loadOptions() async {
+    try {
+      final data = await _api.specialGiftOptions();
+      _merge(recipients, _defaultRecipients, data['recipients']);
+      _merge(occasions, _defaultOccasions, data['occasions']);
+      _merge(giftTypes, _defaultGiftTypes, data['types']);
+    } catch (_) {
+      // keep local options
+    }
+  }
+
+  static void _merge(
+    RxList<SpecialGiftOption> target,
+    List<SpecialGiftOption> local,
+    dynamic remote,
+  ) {
+    if (remote is! List || remote.isEmpty) return;
+    final byId = {for (final o in local) o.id: o};
+    final merged = remote.whereType<Map>().map((m) {
+      final id = '${m['id']}';
+      final known = byId[id];
+      return SpecialGiftOption(
+        id: id,
+        label: '${m['label_key'] ?? m['label'] ?? known?.label ?? id}',
+        iconAsset: known?.iconAsset ?? local.last.iconAsset,
+        span: known?.span ?? 1,
+      );
+    }).toList();
+    if (merged.isNotEmpty) target.assignAll(merged);
+  }
+
   List<SpecialGiftOption> get currentOptions {
     switch (currentStep.value) {
       case 1:
@@ -279,13 +322,13 @@ class SpecialGiftController extends GetxController {
   String get recipientLabel {
     final id = selectedRecipientId.value;
     if (id == null) return 'زوج / زوجة';
-    return recipients.firstWhere((e) => e.id == id).label.tr;
+    return (recipients.firstWhereOrNull((e) => e.id == id)?.label ?? id).tr;
   }
 
   String get occasionLabel {
     final id = selectedOccasionId.value;
     if (id == null) return 'بدون مناسبة';
-    return occasions.firstWhere((e) => e.id == id).label.tr;
+    return (occasions.firstWhereOrNull((e) => e.id == id)?.label ?? id).tr;
   }
 
   String get budgetChipLabel {

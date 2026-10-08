@@ -33,10 +33,17 @@ class CategoriesScreen extends GetView<CategoriesController> {
               children: [
                 _SearchField(onTap: controller.openSearch),
                 SizedBox(height: 23.h),
-                for (final filter in controller.filters) ...[
-                  _FilterTile(filter: filter),
-                  SizedBox(height: 13.h),
-                ],
+                Obx(
+                  () => Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      for (final filter in controller.filters) ...[
+                        _FilterTile(filter: filter),
+                        SizedBox(height: 13.h),
+                      ],
+                    ],
+                  ),
+                ),
                 SizedBox(height: 8.h),
                 SizedBox(
                   width: double.infinity,

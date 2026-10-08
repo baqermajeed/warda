@@ -8,15 +8,13 @@ import 'auth_controller.dart';
 import 'basket_controller.dart';
 
 /// حالة الطلب في قائمة الطلبات.
-enum OrderStatus {
-  delivered,
-  shipping,
-  cancelled,
-}
+enum OrderStatus { pending, delivered, shipping, cancelled }
 
 extension OrderStatusX on OrderStatus {
   String get label {
     switch (this) {
+      case OrderStatus.pending:
+        return 'order_status_pending'.tr;
       case OrderStatus.delivered:
         return 'order_status_delivered'.tr;
       case OrderStatus.shipping:
@@ -28,6 +26,8 @@ extension OrderStatusX on OrderStatus {
 
   Color get textColor {
     switch (this) {
+      case OrderStatus.pending:
+        return const Color(0xFF91716B);
       case OrderStatus.delivered:
         return const Color(0xFF0E8A61);
       case OrderStatus.shipping:
@@ -39,6 +39,8 @@ extension OrderStatusX on OrderStatus {
 
   Color get backgroundColor {
     switch (this) {
+      case OrderStatus.pending:
+        return const Color(0xFF91716B).withValues(alpha: 0.12);
       case OrderStatus.delivered:
         return const Color(0xFF0E8A61).withValues(alpha: 0.1);
       case OrderStatus.shipping:
@@ -153,6 +155,11 @@ class OrdersController extends GetxController {
   final orders = <AppOrder>[].obs;
   final selectedOrderId = RxnString();
   final isLoading = false.obs;
+  final isLoadingMore = false.obs;
+  int _page = 1;
+  int _total = 0;
+
+  bool get hasMore => orders.length < _total;
 
   ApiClient get _api => Get.find<ApiClient>();
 
@@ -185,6 +192,9 @@ class OrdersController extends GetxController {
       case 'cancelled':
       case 'canceled':
         return OrderStatus.cancelled;
+      case 'pending':
+      case 'confirmed':
+        return OrderStatus.pending;
       default:
         return OrderStatus.shipping;
     }
@@ -317,12 +327,36 @@ class OrdersController extends GetxController {
           .map((e) => _mapOrder(Map<String, dynamic>.from(e)))
           .toList();
       orders.assignAll(mapped);
+      _page = 1;
+      _total = (data['total'] as num?)?.toInt() ?? mapped.length;
     } on ApiException catch (e) {
       Get.snackbar('common_app_name'.tr, e.message);
     } catch (_) {
       Get.snackbar('common_app_name'.tr, 'auth_error_generic'.tr);
     } finally {
       isLoading.value = false;
+    }
+  }
+
+  /// تحميل الصفحة التالية من الطلبات عند الوصول لنهاية القائمة.
+  Future<void> loadMore() async {
+    if (!hasMore || isLoading.value || isLoadingMore.value) return;
+    isLoadingMore.value = true;
+    try {
+      final data = await _api.getOrders(page: _page + 1);
+      final mapped = (data['items'] as List? ?? [])
+          .whereType<Map>()
+          .map((e) => _mapOrder(Map<String, dynamic>.from(e)))
+          .toList();
+      final known = orders.map((o) => o.id).toSet();
+      orders.addAll(mapped.where((o) => !known.contains(o.id)));
+      _page += 1;
+      _total = (data['total'] as num?)?.toInt() ?? _total;
+      if (mapped.isEmpty) _total = orders.length;
+    } catch (_) {
+      // يمكن إعادة المحاولة بالتمرير مجددًا
+    } finally {
+      isLoadingMore.value = false;
     }
   }
 

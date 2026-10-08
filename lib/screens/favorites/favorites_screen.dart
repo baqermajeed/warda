@@ -80,27 +80,31 @@ class FavoritesScreen extends GetView<FavoritesController> {
                 if (products.isEmpty) {
                   return const _EmptyFavorites();
                 }
-                return GridView.builder(
-                  padding: EdgeInsets.fromLTRB(20.w, 0, 20.w, 24.h),
-                  itemCount: products.length,
-                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    crossAxisSpacing: 14.w,
-                    mainAxisSpacing: 14.h,
-                    childAspectRatio: 170 / 217,
-                  ),
-                  itemBuilder: (context, index) {
-                    final product = products[index];
-                    return _FavoriteProductCard(
-                      product: product,
-                      onFavoriteTap: () =>
-                          controller.removeFavorite(product.id),
-                      onTap: () => Get.toNamed(
-                        '/product-details',
-                        arguments: product,
-                      ),
-                    );
+                return NotificationListener<ScrollNotification>(
+                  onNotification: (n) {
+                    if (n.metrics.extentAfter < 300) controller.loadMore();
+                    return false;
                   },
+                  child: GridView.builder(
+                    padding: EdgeInsets.fromLTRB(20.w, 0, 20.w, 24.h),
+                    itemCount: products.length,
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2,
+                      crossAxisSpacing: 14.w,
+                      mainAxisSpacing: 14.h,
+                      childAspectRatio: 170 / 217,
+                    ),
+                    itemBuilder: (context, index) {
+                      final product = products[index];
+                      return _FavoriteProductCard(
+                        product: product,
+                        onFavoriteTap: () =>
+                            controller.removeFavorite(product.id),
+                        onTap: () =>
+                            Get.toNamed('/product-details', arguments: product),
+                      );
+                    },
+                  ),
                 );
               }),
             ),
@@ -172,119 +176,116 @@ class _FavoriteProductCard extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(23.r),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.authLink.withValues(alpha: 0.45),
-            blurRadius: 1.7,
-          ),
-        ],
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Expanded(
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                AppImage(
-                  source: product.imageAsset,
-                  fit: BoxFit.cover,
-                ),
-                PositionedDirectional(
-                  start: 16.w,
-                  bottom: 12.h,
-                  child: GestureDetector(
-                    onTap: onFavoriteTap,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(23.r),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.authLink.withValues(alpha: 0.45),
+              blurRadius: 1.7,
+            ),
+          ],
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  AppImage(source: product.imageAsset, fit: BoxFit.cover),
+                  PositionedDirectional(
+                    start: 16.w,
+                    bottom: 12.h,
+                    child: GestureDetector(
+                      onTap: onFavoriteTap,
+                      child: Container(
+                        width: 35.w,
+                        height: 35.w,
+                        decoration: const BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                        ),
+                        alignment: Alignment.center,
+                        child: SvgPicture.asset(
+                          'assets/icons/home/heart_filled.svg',
+                          width: 21.w,
+                          height: 21.w,
+                        ),
+                      ),
+                    ),
+                  ),
+                  PositionedDirectional(
+                    end: 10.w,
+                    bottom: 14.h,
                     child: Container(
-                      width: 35.w,
-                      height: 35.w,
-                      decoration: const BoxDecoration(
-                        color: Colors.white,
-                        shape: BoxShape.circle,
+                      width: 52.w,
+                      height: 22.h,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.82),
+                        borderRadius: BorderRadius.circular(11.r),
                       ),
                       alignment: Alignment.center,
-                      child: SvgPicture.asset(
-                        'assets/icons/home/heart_filled.svg',
-                        width: 21.w,
-                        height: 21.w,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            product.rating.toStringAsFixed(1),
+                            style: TextStyle(
+                              fontFamily: kFontFamily,
+                              fontSize: 11.sp,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.onboardingCta,
+                            ),
+                          ),
+                          SizedBox(width: 2.w),
+                          SvgPicture.asset(
+                            'assets/icons/home/star.svg',
+                            width: 14.w,
+                            height: 14.w,
+                          ),
+                        ],
                       ),
                     ),
                   ),
-                ),
-                PositionedDirectional(
-                  end: 10.w,
-                  bottom: 14.h,
-                  child: Container(
-                    width: 52.w,
-                    height: 22.h,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.82),
-                      borderRadius: BorderRadius.circular(11.r),
-                    ),
-                    alignment: Alignment.center,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          product.rating.toStringAsFixed(1),
-                          style: TextStyle(
-                            fontFamily: kFontFamily,
-                            fontSize: 11.sp,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.onboardingCta,
-                          ),
-                        ),
-                        SizedBox(width: 2.w),
-                        SvgPicture.asset(
-                          'assets/icons/home/star.svg',
-                          width: 14.w,
-                          height: 14.w,
-                        ),
-                      ],
+                ],
+              ),
+            ),
+            Padding(
+              padding: EdgeInsets.fromLTRB(10.w, 10.h, 10.w, 12.h),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    '${product.priceLabel} ${'common_currency_iqd'.tr}',
+                    textAlign: TextAlign.right,
+                    style: TextStyle(
+                      fontFamily: kFontFamily,
+                      fontSize: 14.sp,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.onboardingText,
                     ),
                   ),
-                ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: EdgeInsets.fromLTRB(10.w, 10.h, 10.w, 12.h),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  '${product.priceLabel} ${'common_currency_iqd'.tr}',
-                  textAlign: TextAlign.right,
-                  style: TextStyle(
-                    fontFamily: kFontFamily,
-                    fontSize: 14.sp,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.onboardingText,
+                  SizedBox(height: 2.h),
+                  Text(
+                    product.title.tr,
+                    textAlign: TextAlign.right,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontFamily: kFontFamily,
+                      fontSize: 12.sp,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.authLink,
+                    ),
                   ),
-                ),
-                SizedBox(height: 2.h),
-                Text(
-                  product.title.tr,
-                  textAlign: TextAlign.right,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontFamily: kFontFamily,
-                    fontSize: 12.sp,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.authLink,
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
-    ),
     );
   }
 }

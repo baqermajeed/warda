@@ -167,17 +167,22 @@ class _PaymentCard extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Image.asset(
-              imageAsset,
-              width: imageWidth,
-              height: imageHeight,
-              fit: BoxFit.contain,
-              cacheWidth: 200,
+            // Flexible: الصورة تتقلص إذا كانت المساحة أقل (شاشات/خطوط أكبر).
+            Flexible(
+              child: Image.asset(
+                imageAsset,
+                width: imageWidth,
+                height: imageHeight,
+                fit: BoxFit.contain,
+                cacheWidth: 200,
+              ),
             ),
             SizedBox(height: selected ? 10.h : 3.h),
             Text(
               label,
               textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 fontFamily: kFontFamily,
                 fontSize: 14.sp,

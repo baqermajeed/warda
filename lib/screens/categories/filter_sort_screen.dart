@@ -99,10 +99,17 @@ class FilterSortScreen extends GetView<CategoriesController> {
                     ),
                   ),
                   SizedBox(height: 12.h),
-                  for (final filter in controller.filters) ...[
-                    _FilterExpandTile(filter: filter),
-                    SizedBox(height: 12.h),
-                  ],
+                  Obx(
+                    () => Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        for (final filter in controller.filters) ...[
+                          _FilterExpandTile(filter: filter),
+                          SizedBox(height: 12.h),
+                        ],
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),

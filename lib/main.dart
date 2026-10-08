@@ -14,6 +14,7 @@ import 'core/translations/app_translations.dart';
 import 'controllers/basket_controller.dart';
 import 'controllers/categories_controller.dart';
 import 'controllers/favorites_controller.dart';
+import 'controllers/notifications_controller.dart';
 import 'controllers/order_controller.dart';
 import 'controllers/orders_controller.dart';
 import 'controllers/product_details_controller.dart';
@@ -33,6 +34,7 @@ import 'screens/categories/search_results_screen.dart';
 import 'screens/categories/search_screen.dart';
 import 'screens/favorites/favorites_screen.dart';
 import 'screens/onboarding/onboarding_screen.dart';
+import 'screens/notifications/notifications_screen.dart';
 import 'screens/order/order_payment_screen.dart';
 import 'screens/order/order_success_screen.dart';
 import 'screens/order/order_user_info_screen.dart';
@@ -47,6 +49,7 @@ import 'screens/share/share_app_screen.dart';
 import 'screens/spicial-gift/special_gift_flow_screen.dart';
 import 'screens/spicial-gift/special_gift_results_screen.dart';
 import 'services/api_client.dart';
+import 'services/lookups_service.dart';
 import 'services/token_storage.dart';
 import 'widgets/common/loading/full_page_loading.dart';
 import 'widgets/shell/main_shell.dart';
@@ -68,6 +71,7 @@ Future<void> main() async {
     ),
     permanent: true,
   );
+  Get.put(LookupsService(), permanent: true).ensureLoaded();
   Get.put(ThemeController(), permanent: true);
   final localeController = Get.put(LocaleController(), permanent: true);
   await localeController.ensureLoaded();
@@ -295,6 +299,18 @@ class WardaApp extends StatelessWidget {
                   () => PrivacyController(),
                   fenix: true,
                 );
+              }),
+            ),
+            GetPage(
+              name: '/notifications',
+              page: () => const NotificationsScreen(),
+              binding: BindingsBuilder(() {
+                if (!Get.isRegistered<NotificationsController>()) {
+                  Get.lazyPut<NotificationsController>(
+                    () => NotificationsController(),
+                    fenix: true,
+                  );
+                }
               }),
             ),
             GetPage(

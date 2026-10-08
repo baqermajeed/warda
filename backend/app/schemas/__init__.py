@@ -56,6 +56,7 @@ class LogoutIn(BaseModel):
 
 class ProfileUpdateIn(BaseModel):
     name: str | None = Field(default=None, min_length=2, max_length=120)
+    phone: str | None = Field(default=None, max_length=20)
     governorate: str | None = None
     notifications_enabled: bool | None = None
     locale: str | None = Field(default=None, max_length=8)
@@ -242,3 +243,19 @@ class SupportTicketIn(BaseModel):
     message: str = Field(min_length=2, max_length=4000)
     name: str = Field(default="", max_length=120)
     phone: str = Field(default="", max_length=20)
+
+
+class NotificationOut(BaseModel):
+    id: int
+    type: str
+    title_ar: str
+    title_en: str
+    body_ar: str
+    body_en: str
+    link: str | None = None
+    is_read: bool
+    created_at: str
+
+
+class OrderStatusIn(BaseModel):
+    status: str = Field(pattern="^(pending|confirmed|shipping|delivered|cancelled)$")

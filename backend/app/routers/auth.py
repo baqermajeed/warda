@@ -107,6 +107,15 @@ async def me(user: CurrentUser) -> UserOut:
 async def update_me(payload: ProfileUpdateIn, user: CurrentUser) -> UserOut:
     if payload.name is not None:
         user.name = payload.name.strip()
+    if payload.phone is not None:
+        phone = require_iraqi_phone(payload.phone)
+        if phone != user.phone:
+            taken = db.scalars(
+                select(User).where(User.phone == phone, User.id != user.id)
+            ).first()
+            if taken is not None:
+                raise AppError(400, "Phone already registered", code="PHONE_EXISTS")
+            user.phone = phone
     if payload.governorate is not None:
         user.governorate = payload.governorate
     if payload.notifications_enabled is not None:

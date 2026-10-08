@@ -3,30 +3,9 @@ import 'package:get/get.dart';
 
 import '../core/errors/api_exception.dart';
 import '../services/api_client.dart';
+import '../services/lookups_service.dart';
 import '../utils/app_utils.dart';
 import 'auth_controller.dart';
-
-/// محافظات العراق — مفاتيح ترجمة (`gov_*`).
-const kIraqGovernorates = <String>[
-  'gov_baghdad',
-  'gov_basra',
-  'gov_nineveh',
-  'gov_erbil',
-  'gov_najaf',
-  'gov_karbala',
-  'gov_babylon',
-  'gov_anbar',
-  'gov_diyala',
-  'gov_dhi_qar',
-  'gov_saladin',
-  'gov_wasit',
-  'gov_maysan',
-  'gov_muthanna',
-  'gov_qadisiyyah',
-  'gov_duhok',
-  'gov_sulaymaniyah',
-  'gov_kirkuk',
-];
 
 /// منطق شاشة إنشاء الحساب.
 class SignupController extends GetxController {
@@ -95,6 +74,7 @@ class SignupController extends GetxController {
   void goToLogin() => Get.offNamed('/login');
 
   Future<void> pickGovernorate() async {
+    final governorates = LookupsService.to.governorates;
     final selected = await Get.bottomSheet<String>(
       SafeArea(
         child: Container(
@@ -104,10 +84,10 @@ class SignupController extends GetxController {
           ),
           child: ListView.separated(
             shrinkWrap: true,
-            itemCount: kIraqGovernorates.length,
+            itemCount: governorates.length,
             separatorBuilder: (context, index) => const Divider(height: 1),
             itemBuilder: (context, index) {
-              final item = kIraqGovernorates[index];
+              final item = governorates[index];
               return ListTile(
                 title: Text(item.tr, textAlign: TextAlign.center),
                 onTap: () => Get.back(result: item),
